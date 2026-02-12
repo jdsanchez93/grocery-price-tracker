@@ -188,13 +188,15 @@ export function getStoreTypeFromInstanceId(instanceId: string): StoreType {
   return type as StoreType;
 }
 
-// Helper to get current ISO week
+// Helper to get current grocery week ID (weeks start on Wednesday when new ads release)
 export function getCurrentWeekId(): string {
   const now = new Date();
-  const startOfYear = new Date(now.getFullYear(), 0, 1);
-  const days = Math.floor((now.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
+  // Shift date back 3 days so Wednesday becomes the start of a new week
+  const adjusted = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+  const startOfYear = new Date(adjusted.getFullYear(), 0, 1);
+  const days = Math.floor((adjusted.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
   const weekNumber = Math.ceil((days + startOfYear.getDay() + 1) / 7);
-  return `${now.getFullYear()}-W${weekNumber.toString().padStart(2, '0')}`;
+  return `${adjusted.getFullYear()}-W${weekNumber.toString().padStart(2, '0')}`;
 }
 
 // Helper to get ISO date string
