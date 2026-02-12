@@ -8,6 +8,7 @@ interface KingSoopersAd {
   description?: string;
   departments?: { department: string }[];
   pricingTemplate?: string;
+  salePrice?: number;
   retailPrice?: string;
   percentOff?: number;
   quantity?: number;
@@ -63,13 +64,15 @@ export function standardizeKingSoopersAd(ad: KingSoopersAd): StandardDeal {
 
   let priceDisplay: string | null = null;
   let priceNumber: number | null = null;
-  const retailPrice = ad.retailPrice;
   const percentOff = ad.percentOff;
   let quantity = ad.quantity || 1;
 
-  // Try to extract price from disclaimer if retailPrice is missing
+  // Priority: salePrice > retailPrice > disclaimer extraction
+  let effectiveRetailPrice: string | undefined =
+    ad.salePrice !== undefined ? ad.salePrice.toString() : ad.retailPrice;
+
+  // Try to extract price from disclaimer only if no salePrice and no retailPrice
   // Format: "Regular retail is up to $7.49 each with Card."
-  let effectiveRetailPrice = retailPrice;
   if (!effectiveRetailPrice && ad.disclaimer) {
     const match = ad.disclaimer.match(/\$(\d+\.?\d*)/);
     if (match) {
@@ -77,7 +80,7 @@ export function standardizeKingSoopersAd(ad: KingSoopersAd): StandardDeal {
     }
   }
 
-  if (pricingTemplate === "_KRGR_2FOR" && effectiveRetailPrice) {
+  if (pricingTemplate?.includes("2FOR") && effectiveRetailPrice) {
     const qty = ad.quantity || 2;
     priceDisplay = `${qty} for $${effectiveRetailPrice}`;
     priceNumber = parseFloat(effectiveRetailPrice) / qty;
