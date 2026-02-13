@@ -6,6 +6,12 @@ import {
   extractWeeklyAdMetadata,
   DEFAULT_CIRCULAR_ID,
 } from './scraper/kingsoopers';
+import {
+  fetchPublications as fetchSafewayPublications,
+  extractWeeklyAdMetadata as extractSafewayWeeklyAdMetadata,
+  fetchWeeklyDeals as fetchSafewayWeeklyDeals,
+  fetchAndPersistWeeklyDeals as fetchAndPersistSafewayWeeklyDeals,
+} from './scraper/safeway';
 import { authMiddleware, getAuthUser, isAuthenticated } from './middleware/auth';
 import {
   getDealsForUserStores,
@@ -78,6 +84,7 @@ export function createApp() {
       name: string;
       storeId: string;
       facilityId?: string;
+      postalCode?: string;
     }>();
 
     if (!body.type || !body.name || !body.storeId) {
@@ -94,7 +101,10 @@ export function createApp() {
         identifiers = { type: 'kingsoopers', storeId: body.storeId, facilityId: body.facilityId };
         break;
       case 'safeway':
-        identifiers = { type: 'safeway', storeId: body.storeId };
+        if (!body.postalCode) {
+          return c.json({ error: 'postalCode is required for safeway' }, 400);
+        }
+        identifiers = { type: 'safeway', storeId: body.storeId, postalCode: body.postalCode };
         break;
       case 'sprouts':
         identifiers = { type: 'sprouts', storeId: body.storeId };
@@ -236,6 +246,178 @@ export function createApp() {
       weeklyAdMeta.circularId,
       storeId,
       facilityId,
+      storeInstance.instanceId,
+      weekId,
+      { startDate: weeklyAdMeta.startDate, endDate: weeklyAdMeta.endDate }
+    );
+
+    return c.json({
+      success: true,
+      alreadyScraped: false,
+      weekId,
+      circularId: weeklyAdMeta.circularId,
+      storeInstanceId: storeInstance.instanceId,
+      dealCount: result.deals.length,
+      persisted: result.persisted,
+      dates: {
+        startDate: weeklyAdMeta.startDate,
+        endDate: weeklyAdMeta.endDate,
+      },
+    });
+  });
+
+  // ===================
+  // Safeway Admin Endpoints
+  // ===================
+
+  // Fetch available publications (circulars) from Flipp API
+  app.get('/admin/safeway/circulars', async (c) => {
+    const storeId = c.req.query('storeId');
+    const postalCode = c.req.query('postalCode');
+
+    if (!storeId || !postalCode) {
+      return c.json({ error: 'storeId and postalCode are required' }, 400);
+    }
+
+    try {
+      const result = await fetchSafewayPublications(storeId, postalCode);
+      return c.json({
+        weeklyAdCircularId: result.weeklyAdPublicationId?.toString() || null,
+        circulars: result.publications.map((pub) => ({
+          id: pub.id.toString(),
+          name: pub.external_display_name,
+          startDate: pub.valid_from,
+          endDate: pub.valid_to,
+        })),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return c.json({ error: message }, 500);
+    }
+  });
+
+  // Preview deals from Safeway/Flipp API (no persist)
+  app.get('/admin/safeway/deals', async (c) => {
+    const storeId = c.req.query('storeId');
+    const postalCode = c.req.query('postalCode');
+    const circularId = c.req.query('circularId');
+
+    if (!storeId || !postalCode) {
+      return c.json({ error: 'storeId and postalCode are required' }, 400);
+    }
+
+    try {
+      let publicationId: string;
+
+      if (circularId) {
+        publicationId = circularId;
+      } else {
+        // Auto-detect weekly ad publication
+        const { weeklyAdPublicationId } = await fetchSafewayPublications(storeId, postalCode);
+        if (!weeklyAdPublicationId) {
+          return c.json({ error: 'No Weekly Ad publication found' }, 404);
+        }
+        publicationId = weeklyAdPublicationId.toString();
+      }
+
+      const deals = await fetchSafewayWeeklyDeals(publicationId);
+      return c.json({ deals, count: deals.length, circularId: publicationId });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return c.json({ error: message }, 500);
+    }
+  });
+
+  // Manual scrape: fetch and persist deals to DynamoDB
+  app.post('/admin/safeway/scrape', async (c) => {
+    const storeId = c.req.query('storeId');
+    const postalCode = c.req.query('postalCode');
+    const circularId = c.req.query('circularId');
+    const storeName = c.req.query('storeName');
+
+    if (!storeId || !postalCode || !circularId) {
+      return c.json({ error: 'storeId, postalCode, and circularId are required' }, 400);
+    }
+
+    const weekId = c.req.query('weekId') ?? getCurrentWeekId();
+
+    // Get or create the store instance
+    const identifiers: StoreIdentifiers = {
+      type: 'safeway',
+      storeId,
+      postalCode,
+    };
+
+    const storeInstance = await getOrCreateStoreInstance(
+      identifiers,
+      storeName || `Safeway (${storeId})`
+    );
+
+    const result = await fetchAndPersistSafewayWeeklyDeals(
+      circularId,
+      storeInstance.instanceId,
+      weekId
+    );
+
+    return c.json({
+      success: true,
+      weekId,
+      storeInstanceId: storeInstance.instanceId,
+      circularId,
+      dealCount: result.deals.length,
+      persisted: result.persisted,
+    });
+  });
+
+  // Auto-scrape: fetch circularId + scrape with deduplication
+  app.post('/admin/safeway/scrape/auto', async (c) => {
+    const storeId = c.req.query('storeId');
+    const postalCode = c.req.query('postalCode');
+    const storeName = c.req.query('storeName');
+
+    if (!storeId || !postalCode) {
+      return c.json({ error: 'storeId and postalCode are required' }, 400);
+    }
+
+    // 1. Fetch publications and extract weeklyAd metadata
+    const { publications } = await fetchSafewayPublications(storeId, postalCode);
+    const weeklyAdMeta = extractSafewayWeeklyAdMetadata(publications);
+
+    if (!weeklyAdMeta) {
+      return c.json({ error: 'No Weekly Ad publication found' }, 404);
+    }
+
+    const weekId = getCurrentWeekId();
+
+    // 2. Get or create store instance
+    const identifiers: StoreIdentifiers = {
+      type: 'safeway',
+      storeId,
+      postalCode,
+    };
+
+    const storeInstance = await getOrCreateStoreInstance(
+      identifiers,
+      storeName || `Safeway (${storeId})`
+    );
+
+    // 3. Check for existing circular (deduplication)
+    const existingCircular = await getCircular(storeInstance.instanceId, weekId);
+
+    if (existingCircular && existingCircular.circularId === weeklyAdMeta.circularId) {
+      return c.json({
+        success: true,
+        alreadyScraped: true,
+        weekId,
+        circularId: weeklyAdMeta.circularId,
+        storeInstanceId: storeInstance.instanceId,
+        existingDealCount: existingCircular.dealCount,
+      });
+    }
+
+    // 4. Scrape and persist deals
+    const result = await fetchAndPersistSafewayWeeklyDeals(
+      weeklyAdMeta.circularId,
       storeInstance.instanceId,
       weekId,
       { startDate: weeklyAdMeta.startDate, endDate: weeklyAdMeta.endDate }

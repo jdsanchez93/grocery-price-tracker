@@ -24,7 +24,7 @@ import * as crypto from 'crypto';
 
 export type StoreIdentifiers =
   | { type: 'kingsoopers'; storeId: string; facilityId: string }
-  | { type: 'safeway'; storeId: string }
+  | { type: 'safeway'; storeId: string; postalCode: string }
   | { type: 'sprouts'; storeId: string };
 
 export type StoreType = StoreIdentifiers['type'];
@@ -38,6 +38,8 @@ export function generateStoreInstanceId(identifiers: StoreIdentifiers): string {
       dataToHash = `${identifiers.storeId}:${identifiers.facilityId}`;
       break;
     case 'safeway':
+      dataToHash = `${identifiers.storeId}:${identifiers.postalCode}`;
+      break;
     case 'sprouts':
       dataToHash = identifiers.storeId;
       break;
