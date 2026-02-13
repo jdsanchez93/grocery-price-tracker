@@ -432,6 +432,20 @@ export async function getPriceHistory(
 }
 
 // Circular metadata
+export async function getCircular(
+  storeInstanceId: string,
+  weekId: string
+): Promise<CircularItem | null> {
+  const result = await docClient.send(new GetCommand({
+    TableName: TABLE_NAME,
+    Key: {
+      PK: Keys.circular.pk(storeInstanceId, weekId),
+      SK: Keys.circular.sk(),
+    },
+  }));
+  return (result.Item as CircularItem) || null;
+}
+
 export async function writeCircular(
   storeInstanceId: string,
   weekId: string,

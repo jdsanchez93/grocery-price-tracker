@@ -34,6 +34,7 @@ export interface StandardDeal {
 interface LafObject {
   modality: { type: string };
   sources: { storeId: string; facilityId: string }[];
+  listingKeys: string[];
 }
 
 // export const DEFAULT_CIRCULAR_ID = "3dd6895e-b069-4ec9-af91-18799639bac9";
@@ -52,8 +53,72 @@ function buildLafObject(
     {
       modality: { type: modalityType },
       sources: [{ storeId, facilityId }],
+      listingKeys: [storeId],
     },
   ];
+}
+
+interface Circular {
+  id: string;
+  circularType: string;
+  eventName: string;
+  eventStartDate: string;
+  eventEndDate: string;
+  divisionName: string;
+  week: string;
+}
+
+export interface WeeklyAdMetadata {
+  circularId: string;
+  startDate: string;
+  endDate: string;
+}
+
+export function extractWeeklyAdMetadata(circulars: Circular[]): WeeklyAdMetadata | null {
+  const weeklyAd = circulars.find((circ) => circ.circularType === 'weeklyAd');
+  if (!weeklyAd) {
+    return null;
+  }
+  return {
+    circularId: weeklyAd.id,
+    startDate: weeklyAd.eventStartDate,
+    endDate: weeklyAd.eventEndDate,
+  };
+}
+
+export async function fetchCirculars(
+  storeId: string,
+  facilityId: string
+): Promise<{ weeklyAdCircularId: string | null; circulars: Circular[] }> {
+  const lafObject = buildLafObject(storeId, facilityId);
+
+  const response = await fetch(
+    'https://api.kroger.com/digitalads/v1/circulars?filter.tags=SHOPPABLE&filter.tags=CLASSIC_VIEW',
+    {
+      headers: {
+        Accept: 'application/json',
+        'x-kroger-channel': 'WEB',
+        'x-facility-id': storeId,
+        'x-modality-type': DEFAULT_MODALITY_TYPE,
+        'x-modality': JSON.stringify({ type: DEFAULT_MODALITY_TYPE, locationId: storeId }),
+        'x-laf-object': JSON.stringify(lafObject),
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Kroger API error: ${response.status} - ${errorBody}`);
+  }
+
+  const json = await response.json();
+  const circulars: Circular[] = json.data || [];
+  const weeklyAd = circulars.find((circ) => circ.circularType === 'weeklyAd');
+
+  return {
+    weeklyAdCircularId: weeklyAd?.id || null,
+    circulars,
+  };
 }
 
 export function standardizeKingSoopersAd(ad: KingSoopersAd): StandardDeal {
@@ -69,7 +134,7 @@ export function standardizeKingSoopersAd(ad: KingSoopersAd): StandardDeal {
 
   // Priority: salePrice > retailPrice > disclaimer extraction
   let effectiveRetailPrice: string | undefined =
-    ad.salePrice !== undefined ? ad.salePrice.toString() : ad.retailPrice;
+    ad.salePrice != null ? ad.salePrice.toString() : ad.retailPrice;
 
   // Try to extract price from disclaimer only if no salePrice and no retailPrice
   // Format: "Regular retail is up to $7.49 each with Card."
@@ -172,7 +237,8 @@ export async function fetchWeeklyDeals(
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch deals: ${response.status}`);
+    const errorBody = await response.text();
+    throw new Error(`Failed to fetch deals: ${response.status} - ${errorBody}`);
   }
 
   const json: KingSoopersApiResponse = await response.json();
@@ -188,13 +254,15 @@ export async function fetchWeeklyDeals(
  * @param facilityId - The King Soopers facility ID (API parameter)
  * @param storeInstanceId - The store instance ID for DynamoDB (e.g., "kingsoopers:a1b2c3d4")
  * @param weekId - The week ID (ISO format)
+ * @param circularDates - Optional start/end dates from Kroger API
  */
 export async function fetchAndPersistWeeklyDeals(
   circularId: string,
   storeId: string,
   facilityId: string,
   storeInstanceId: string,
-  weekId: string = getCurrentWeekId()
+  weekId: string = getCurrentWeekId(),
+  circularDates?: { startDate: string; endDate: string }
 ): Promise<{ deals: StandardDeal[]; persisted: boolean }> {
   const deals = await fetchWeeklyDeals(circularId, storeId, facilityId);
 
@@ -207,13 +275,21 @@ export async function fetchAndPersistWeeklyDeals(
     findCanonicalProductId(deal.name, deal.details)
   );
 
-  // Write circular metadata
-  const today = new Date();
-  const startDate = today.toISOString().split('T')[0];
-  // Assume weekly ads run for 7 days
-  const endDate = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split('T')[0];
+  // Write circular metadata - use provided dates or calculate from today
+  let startDate: string;
+  let endDate: string;
+
+  if (circularDates) {
+    startDate = circularDates.startDate;
+    endDate = circularDates.endDate;
+  } else {
+    const today = new Date();
+    startDate = today.toISOString().split('T')[0];
+    // Assume weekly ads run for 7 days
+    endDate = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split('T')[0];
+  }
 
   await writeCircular(
     storeInstanceId,

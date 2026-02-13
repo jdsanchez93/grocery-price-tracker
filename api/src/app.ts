@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import {
   fetchWeeklyDeals,
   fetchAndPersistWeeklyDeals,
+  fetchCirculars,
+  extractWeeklyAdMetadata,
   DEFAULT_CIRCULAR_ID,
 } from './scraper/kingsoopers';
 import { authMiddleware, getAuthUser, isAuthenticated } from './middleware/auth';
@@ -20,6 +22,7 @@ import {
   getOrCreateStoreInstance,
   writeStoreType,
   writeStoreInstance,
+  getCircular,
 } from './db/client';
 import {
   getCurrentWeekId,
@@ -61,8 +64,15 @@ export function createApp() {
     });
   });
 
-  // Create a store instance (admin/internal endpoint)
-  app.post('/stores', async (c) => {
+  // ===================
+  // Admin Endpoints (/admin/*)
+  // ===================
+
+  // Apply auth middleware to all /admin/* routes
+  app.use('/admin/*', authMiddleware({ required: true, scopes: ['admin'] }));
+
+  // Create a store instance
+  app.post('/admin/stores', async (c) => {
     const body = await c.req.json<{
       type: StoreType;
       name: string;
@@ -101,8 +111,26 @@ export function createApp() {
     });
   });
 
-  // Legacy endpoint: fetch deals directly from King Soopers API
-  app.get('/deals/kingsoopers', async (c) => {
+  // Fetch available circulars from Kroger API
+  app.get('/admin/kingsoopers/circulars', async (c) => {
+    const storeId = c.req.query('storeId');
+    const facilityId = c.req.query('facilityId');
+
+    if (!storeId || !facilityId) {
+      return c.json({ error: 'storeId and facilityId are required' }, 400);
+    }
+
+    try {
+      const result = await fetchCirculars(storeId, facilityId);
+      return c.json(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return c.json({ error: message }, 500);
+    }
+  });
+
+  // Preview deals from King Soopers API (no persist)
+  app.get('/admin/kingsoopers/deals', async (c) => {
     const circularId = c.req.query('circularId') ?? DEFAULT_CIRCULAR_ID;
     const storeId = c.req.query('storeId');
     const facilityId = c.req.query('facilityId');
@@ -115,8 +143,8 @@ export function createApp() {
     return c.json({ deals, count: deals.length });
   });
 
-  // Scraper endpoint: fetch and persist deals to DynamoDB
-  app.post('/scrape/kingsoopers', async (c) => {
+  // Manual scrape: fetch and persist deals to DynamoDB
+  app.post('/admin/kingsoopers/scrape', async (c) => {
     const circularId = c.req.query('circularId') ?? DEFAULT_CIRCULAR_ID;
     const storeId = c.req.query('storeId');
     const facilityId = c.req.query('facilityId');
@@ -157,8 +185,79 @@ export function createApp() {
     });
   });
 
+  // Auto-scrape: fetch circularId + scrape with deduplication
+  app.post('/admin/kingsoopers/scrape/auto', async (c) => {
+    const storeId = c.req.query('storeId');
+    const facilityId = c.req.query('facilityId');
+    const storeName = c.req.query('storeName');
+
+    if (!storeId || !facilityId) {
+      return c.json({ error: 'storeId and facilityId are required' }, 400);
+    }
+
+    // 1. Fetch circulars and extract weeklyAd metadata
+    const { circulars } = await fetchCirculars(storeId, facilityId);
+    const weeklyAdMeta = extractWeeklyAdMetadata(circulars);
+
+    if (!weeklyAdMeta) {
+      return c.json({ error: 'No weeklyAd circular found' }, 404);
+    }
+
+    const weekId = getCurrentWeekId();
+
+    // 2. Get or create store instance
+    const identifiers: StoreIdentifiers = {
+      type: 'kingsoopers',
+      storeId,
+      facilityId,
+    };
+
+    const storeInstance = await getOrCreateStoreInstance(
+      identifiers,
+      storeName || `King Soopers (${storeId})`
+    );
+
+    // 3. Check for existing circular (deduplication)
+    const existingCircular = await getCircular(storeInstance.instanceId, weekId);
+
+    if (existingCircular && existingCircular.circularId === weeklyAdMeta.circularId) {
+      return c.json({
+        success: true,
+        alreadyScraped: true,
+        weekId,
+        circularId: weeklyAdMeta.circularId,
+        storeInstanceId: storeInstance.instanceId,
+        existingDealCount: existingCircular.dealCount,
+      });
+    }
+
+    // 4. Scrape and persist deals
+    const result = await fetchAndPersistWeeklyDeals(
+      weeklyAdMeta.circularId,
+      storeId,
+      facilityId,
+      storeInstance.instanceId,
+      weekId,
+      { startDate: weeklyAdMeta.startDate, endDate: weeklyAdMeta.endDate }
+    );
+
+    return c.json({
+      success: true,
+      alreadyScraped: false,
+      weekId,
+      circularId: weeklyAdMeta.circularId,
+      storeInstanceId: storeInstance.instanceId,
+      dealCount: result.deals.length,
+      persisted: result.persisted,
+      dates: {
+        startDate: weeklyAdMeta.startDate,
+        endDate: weeklyAdMeta.endDate,
+      },
+    });
+  });
+
   // ===================
-  // Authenticated Endpoints (/me/*)
+  // User Endpoints (/me/*)
   // ===================
 
   // Apply auth middleware to all /me/* routes
