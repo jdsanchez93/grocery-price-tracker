@@ -10,7 +10,6 @@ import {
 import {
   Keys,
   DealItem,
-  StoreTypeItem,
   StoreInstanceItem,
   UserItem,
   UserStoreItem,
@@ -170,66 +169,7 @@ export async function getDealsForWeek(weekId: string = getCurrentWeekId()): Prom
 }
 
 // ===================
-// Store Types
-// ===================
-
-export async function getStoreType(storeType: StoreType): Promise<StoreTypeItem | null> {
-  const result = await docClient.send(new GetCommand({
-    TableName: TABLE_NAME,
-    Key: {
-      PK: Keys.storeType.pk(storeType),
-      SK: Keys.storeType.sk(),
-    },
-  }));
-
-  return (result.Item as StoreTypeItem) || null;
-}
-
-export async function getAllStoreTypes(): Promise<StoreTypeItem[]> {
-  // For now, we'll scan and filter by entity type
-  // With a small number of store types, this is acceptable
-  const { ScanCommand } = await import('@aws-sdk/lib-dynamodb');
-  const result = await docClient.send(new ScanCommand({
-    TableName: TABLE_NAME,
-    FilterExpression: 'entityType = :entityType',
-    ExpressionAttributeValues: {
-      ':entityType': 'STORE_TYPE',
-    },
-  }));
-
-  return (result.Items || []) as StoreTypeItem[];
-}
-
-export async function writeStoreType(
-  storeType: StoreType,
-  name: string,
-  chain: string,
-  enabled: boolean = true
-): Promise<StoreTypeItem> {
-  const now = new Date().toISOString();
-
-  const item: StoreTypeItem = {
-    PK: Keys.storeType.pk(storeType),
-    SK: Keys.storeType.sk(),
-    entityType: 'STORE_TYPE',
-    storeType,
-    name,
-    chain,
-    enabled,
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  await docClient.send(new PutCommand({
-    TableName: TABLE_NAME,
-    Item: item,
-  }));
-
-  return item;
-}
-
-// ===================
-// Store Instances (new)
+// Store Instances
 // ===================
 
 export async function getStoreInstance(instanceId: string): Promise<StoreInstanceItem | null> {

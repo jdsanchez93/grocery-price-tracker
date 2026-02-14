@@ -21,12 +21,9 @@ import {
   getUser,
   createUser,
   getPriceHistory,
-  getAllStoreTypes,
-  getStoreType,
   getStoreInstancesByType,
   getStoreInstance,
   getOrCreateStoreInstance,
-  writeStoreType,
   writeStoreInstance,
   getCircular,
 } from './db/client';
@@ -35,6 +32,7 @@ import {
   StoreType,
   StoreIdentifiers,
   generateStoreInstanceId,
+  STORE_TYPE_METADATA,
 } from './types/database';
 import { searchDeals } from './scraper/products';
 
@@ -48,8 +46,12 @@ export function createApp() {
   // ===================
 
   // List available store types (e.g., kingsoopers, safeway, sprouts)
-  app.get('/store-types', async (c) => {
-    const storeTypes = await getAllStoreTypes();
+  app.get('/store-types', (c) => {
+    const storeTypes = Object.entries(STORE_TYPE_METADATA).map(([type, meta]) => ({
+      storeType: type,
+      name: meta.name,
+      chain: meta.chain,
+    }));
     return c.json({ storeTypes });
   });
 
@@ -58,14 +60,18 @@ export function createApp() {
     const storeType = c.req.param('type') as StoreType;
 
     // Validate store type exists
-    const typeInfo = await getStoreType(storeType);
+    const typeInfo = STORE_TYPE_METADATA[storeType];
     if (!typeInfo) {
       return c.json({ error: 'Store type not found' }, 404);
     }
 
     const instances = await getStoreInstancesByType(storeType);
     return c.json({
-      storeType: typeInfo,
+      storeType: {
+        storeType,
+        name: typeInfo.name,
+        chain: typeInfo.chain,
+      },
       stores: instances,
     });
   });
@@ -454,15 +460,15 @@ export function createApp() {
     const storesWithDetails = await Promise.all(
       userStores.map(async (us) => {
         const storeInstance = await getStoreInstance(us.storeInstanceId);
-        const storeType = storeInstance
-          ? await getStoreType(storeInstance.storeType)
+        const storeTypeMeta = storeInstance
+          ? STORE_TYPE_METADATA[storeInstance.storeType]
           : null;
 
         return {
           instanceId: us.storeInstanceId,
           name: storeInstance?.name || us.storeInstanceId,
           storeType: storeInstance?.storeType,
-          chain: storeType?.chain,
+          chain: storeTypeMeta?.chain,
           identifiers: storeInstance?.identifiers,
           addedAt: us.addedAt,
         };
@@ -490,7 +496,7 @@ export function createApp() {
     }
 
     const userStore = await addUserStore(user.userId, instanceId);
-    const storeType = await getStoreType(storeInstance.storeType);
+    const storeTypeMeta = STORE_TYPE_METADATA[storeInstance.storeType];
 
     return c.json({
       success: true,
@@ -498,7 +504,7 @@ export function createApp() {
         instanceId: userStore.storeInstanceId,
         name: storeInstance.name,
         storeType: storeInstance.storeType,
-        chain: storeType?.chain,
+        chain: storeTypeMeta?.chain,
         identifiers: storeInstance.identifiers,
         addedAt: userStore.addedAt,
       },

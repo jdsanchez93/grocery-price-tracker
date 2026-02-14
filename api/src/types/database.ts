@@ -3,7 +3,6 @@
 
 // Key patterns:
 // Deal:          PK = STORE#<instanceId>#WEEK#<week>   SK = DEAL#<id>
-// StoreType:     PK = STORETYPE#<type>                 SK = METADATA
 // StoreInstance: PK = STOREINSTANCE#<instanceId>       SK = METADATA
 // Circular:      PK = STORE#<instanceId>#WEEK#<week>   SK = METADATA
 // Product:       PK = PRODUCT#<canonical_id>           SK = METADATA
@@ -28,6 +27,12 @@ export type StoreIdentifiers =
   | { type: 'sprouts'; storeId: string };
 
 export type StoreType = StoreIdentifiers['type'];
+
+export const STORE_TYPE_METADATA: Record<StoreType, { name: string; chain: string }> = {
+  kingsoopers: { name: 'King Soopers', chain: 'kroger' },
+  safeway: { name: 'Safeway', chain: 'albertsons' },
+  sprouts: { name: 'Sprouts', chain: 'sprouts' },
+};
 
 // Generate a unique store instance ID from identifiers
 export function generateStoreInstanceId(identifiers: StoreIdentifiers): string {
@@ -76,16 +81,7 @@ export interface DealItem extends BaseItem {
   canonicalProductId?: string;
 }
 
-// Store type (e.g., "kingsoopers", "safeway", "sprouts")
-export interface StoreTypeItem extends BaseItem {
-  entityType: 'STORE_TYPE';
-  storeType: StoreType;
-  name: string; // Display name, e.g., "King Soopers"
-  chain: string; // Parent chain, e.g., "kroger"
-  enabled: boolean;
-}
-
-// New: Store instance (specific physical location)
+// Store instance (specific physical location)
 export interface StoreInstanceItem extends BaseItem {
   entityType: 'STORE_INSTANCE';
   instanceId: string; // e.g., "kingsoopers:a1b2c3d4"
@@ -130,7 +126,6 @@ export interface UserStoreItem extends BaseItem {
 // Union type for all item types
 export type DynamoDBItem =
   | DealItem
-  | StoreTypeItem
   | StoreInstanceItem
   | CircularItem
   | ProductItem
@@ -144,12 +139,6 @@ export const Keys = {
     pk: (storeInstanceId: string, weekId: string) => `STORE#${storeInstanceId}#WEEK#${weekId}`,
     sk: (dealId: string) => `DEAL#${dealId}`,
   },
-  // Store type keys
-  storeType: {
-    pk: (storeType: StoreType) => `STORETYPE#${storeType}`,
-    sk: () => 'METADATA',
-  },
-  // New: Store instance keys
   storeInstance: {
     pk: (instanceId: string) => `STOREINSTANCE#${instanceId}`,
     sk: () => 'METADATA',
