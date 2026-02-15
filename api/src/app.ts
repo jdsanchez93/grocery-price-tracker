@@ -26,6 +26,7 @@ import {
   getOrCreateStoreInstance,
   writeStoreInstance,
   getCircular,
+  deleteCircularAndDeals,
 } from './db/client';
 import {
   getCurrentWeekId,
@@ -202,10 +203,12 @@ export function createApp() {
   });
 
   // Auto-scrape: fetch circularId + scrape with deduplication
+  // Use ?force=true to clear existing data and re-scrape
   app.post('/admin/kingsoopers/scrape/auto', async (c) => {
     const storeId = c.req.query('storeId');
     const facilityId = c.req.query('facilityId');
     const storeName = c.req.query('storeName');
+    const force = c.req.query('force') === 'true';
 
     if (!storeId || !facilityId) {
       return c.json({ error: 'storeId and facilityId are required' }, 400);
@@ -233,10 +236,10 @@ export function createApp() {
       storeName || `King Soopers (${storeId})`
     );
 
-    // 3. Check for existing circular (deduplication)
+    // 3. Check for existing circular (deduplication) - skip if force=true
     const existingCircular = await getCircular(storeInstance.instanceId, weekId);
 
-    if (existingCircular && existingCircular.circularId === weeklyAdMeta.circularId) {
+    if (!force && existingCircular && existingCircular.circularId === weeklyAdMeta.circularId) {
       return c.json({
         success: true,
         alreadyScraped: true,
@@ -247,7 +250,14 @@ export function createApp() {
       });
     }
 
-    // 4. Scrape and persist deals
+    // 4. If force=true, delete existing circular and deals first
+    let deletedCount = 0;
+    if (force && existingCircular) {
+      const deleteResult = await deleteCircularAndDeals(storeInstance.instanceId, weekId);
+      deletedCount = deleteResult.deletedCount;
+    }
+
+    // 5. Scrape and persist deals
     const result = await fetchAndPersistWeeklyDeals(
       weeklyAdMeta.circularId,
       storeId,
@@ -260,6 +270,8 @@ export function createApp() {
     return c.json({
       success: true,
       alreadyScraped: false,
+      forced: force,
+      ...(force && deletedCount > 0 && { deletedCount }),
       weekId,
       circularId: weeklyAdMeta.circularId,
       storeInstanceId: storeInstance.instanceId,
@@ -376,10 +388,12 @@ export function createApp() {
   });
 
   // Auto-scrape: fetch circularId + scrape with deduplication
+  // Use ?force=true to clear existing data and re-scrape
   app.post('/admin/safeway/scrape/auto', async (c) => {
     const storeId = c.req.query('storeId');
     const postalCode = c.req.query('postalCode');
     const storeName = c.req.query('storeName');
+    const force = c.req.query('force') === 'true';
 
     if (!storeId || !postalCode) {
       return c.json({ error: 'storeId and postalCode are required' }, 400);
@@ -407,10 +421,10 @@ export function createApp() {
       storeName || `Safeway (${storeId})`
     );
 
-    // 3. Check for existing circular (deduplication)
+    // 3. Check for existing circular (deduplication) - skip if force=true
     const existingCircular = await getCircular(storeInstance.instanceId, weekId);
 
-    if (existingCircular && existingCircular.circularId === weeklyAdMeta.circularId) {
+    if (!force && existingCircular && existingCircular.circularId === weeklyAdMeta.circularId) {
       return c.json({
         success: true,
         alreadyScraped: true,
@@ -421,7 +435,14 @@ export function createApp() {
       });
     }
 
-    // 4. Scrape and persist deals
+    // 4. If force=true, delete existing circular and deals first
+    let deletedCount = 0;
+    if (force && existingCircular) {
+      const deleteResult = await deleteCircularAndDeals(storeInstance.instanceId, weekId);
+      deletedCount = deleteResult.deletedCount;
+    }
+
+    // 5. Scrape and persist deals
     const result = await fetchAndPersistSafewayWeeklyDeals(
       weeklyAdMeta.circularId,
       storeInstance.instanceId,
@@ -432,6 +453,8 @@ export function createApp() {
     return c.json({
       success: true,
       alreadyScraped: false,
+      forced: force,
+      ...(force && deletedCount > 0 && { deletedCount }),
       weekId,
       circularId: weeklyAdMeta.circularId,
       storeInstanceId: storeInstance.instanceId,

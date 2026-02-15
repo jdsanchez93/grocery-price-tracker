@@ -7,6 +7,7 @@ import {
   DeleteCommand,
   BatchWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
+import * as crypto from 'crypto';
 import {
   Keys,
   DealItem,
@@ -27,17 +28,10 @@ const docClient = DynamoDBDocumentClient.from(client);
 
 const TABLE_NAME = process.env.TABLE_NAME || 'GroceryDeals';
 
-// Generate a unique deal ID from deal content
+// Generate a unique deal ID from deal content using SHA-256 (truncated)
 function generateDealId(deal: StandardDeal): string {
-  const normalized = `${deal.name || ''}-${deal.priceDisplay}-${deal.dept}`.toLowerCase();
-  // Simple hash for deduplication
-  let hash = 0;
-  for (let i = 0; i < normalized.length; i++) {
-    const char = normalized.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return Math.abs(hash).toString(36);
+  const normalized = `${deal.name || ''}-${deal.priceDisplay}-${deal.dept}-${deal.details || ''}-${deal.image || ''}`.toLowerCase();
+  return crypto.createHash('sha256').update(normalized).digest('hex').substring(0, 12);
 }
 
 // Deals
@@ -414,4 +408,46 @@ export async function writeCircular(
     TableName: TABLE_NAME,
     Item: item,
   }));
+}
+
+// Delete circular and all deals for a store/week
+export async function deleteCircularAndDeals(
+  storeInstanceId: string,
+  weekId: string
+): Promise<{ deletedCount: number }> {
+  const pk = Keys.circular.pk(storeInstanceId, weekId);
+
+  // Query all items with this PK (circular metadata + all deals)
+  const result = await docClient.send(new QueryCommand({
+    TableName: TABLE_NAME,
+    KeyConditionExpression: 'PK = :pk',
+    ExpressionAttributeValues: {
+      ':pk': pk,
+    },
+    ProjectionExpression: 'PK, SK',
+  }));
+
+  const items = result.Items || [];
+  if (items.length === 0) {
+    return { deletedCount: 0 };
+  }
+
+  // Batch delete (max 25 items per batch)
+  const BATCH_SIZE = 25;
+  for (let i = 0; i < items.length; i += BATCH_SIZE) {
+    const batch = items.slice(i, i + BATCH_SIZE);
+    const deleteRequests = batch.map((item) => ({
+      DeleteRequest: {
+        Key: { PK: item.PK, SK: item.SK },
+      },
+    }));
+
+    await docClient.send(new BatchWriteCommand({
+      RequestItems: {
+        [TABLE_NAME]: deleteRequests,
+      },
+    }));
+  }
+
+  return { deletedCount: items.length };
 }
