@@ -1,1 +1,379 @@
-/* You can add global styles to this file, and also import other style files */
+/* Global styles and Sakai layout CSS */
+
+/* CSS Variables for layout */
+:root {
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --layout-sidebar-width: 280px;
+  --layout-topbar-height: 60px;
+}
+
+/* ===== Base styles ===== */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 14px;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  font-family: var(--font-family);
+  color: var(--text-color);
+  background-color: var(--surface-ground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body.blocked-scroll {
+  overflow: hidden;
+}
+
+a {
+  text-decoration: none;
+  color: var(--primary-color);
+}
+
+/* ===== Layout wrapper ===== */
+.layout-wrapper {
+  min-height: 100vh;
+}
+
+/* ===== Topbar ===== */
+.layout-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--layout-topbar-height);
+  background-color: var(--surface-card);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  z-index: 1100;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.layout-topbar-logo-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.layout-topbar-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-color);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.layout-topbar-logo:hover {
+  color: var(--primary-color);
+}
+
+.layout-menu-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  border-radius: var(--border-radius);
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.layout-menu-button:hover {
+  background-color: var(--surface-hover);
+}
+
+.layout-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.layout-topbar-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  border-radius: var(--border-radius);
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.layout-topbar-action:hover {
+  background-color: var(--surface-hover);
+}
+
+.layout-config-menu {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* ===== Sidebar ===== */
+.layout-sidebar {
+  position: fixed;
+  top: var(--layout-topbar-height);
+  left: 0;
+  width: var(--layout-sidebar-width);
+  height: calc(100vh - var(--layout-topbar-height));
+  background-color: var(--surface-card);
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 1000;
+  transition: transform 0.3s ease;
+  border-right: 1px solid var(--surface-border);
+}
+
+/* ===== Menu ===== */
+.layout-menu {
+  list-style: none;
+  margin: 0;
+  padding: 1rem;
+}
+
+.layout-menu li {
+  margin-bottom: 0.25rem;
+}
+
+.layout-menuitem-root-text {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-color-secondary);
+  padding: 1rem 0.75rem 0.5rem;
+  letter-spacing: 0.05em;
+}
+
+.layout-menu a {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: var(--border-radius);
+  color: var(--text-color);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.layout-menu a:hover {
+  background-color: var(--surface-hover);
+}
+
+.layout-menu a.active-route {
+  background-color: var(--primary-color);
+  color: var(--primary-color-text);
+}
+
+.layout-menuitem-icon {
+  font-size: 1.125rem;
+}
+
+.layout-menuitem-text {
+  font-weight: 500;
+}
+
+.layout-submenu-toggler {
+  margin-left: auto;
+  transition: transform 0.2s;
+}
+
+.active-menuitem > a .layout-submenu-toggler {
+  transform: rotate(-180deg);
+}
+
+.layout-root-submenulist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  padding-left: 1rem;
+  overflow: hidden;
+}
+
+.menu-separator {
+  border-top: 1px solid var(--surface-border);
+  margin: 1rem 0;
+}
+
+/* ===== Main container ===== */
+.layout-main-container {
+  margin-left: var(--layout-sidebar-width);
+  padding-top: var(--layout-topbar-height);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  transition: margin-left 0.3s ease;
+}
+
+.layout-main {
+  flex: 1;
+  padding: 1.5rem;
+}
+
+/* ===== Footer ===== */
+.layout-footer {
+  padding: 1rem 1.5rem;
+  text-align: center;
+  color: var(--text-color-secondary);
+  font-size: 0.875rem;
+  border-top: 1px solid var(--surface-border);
+  background-color: var(--surface-card);
+}
+
+/* ===== Mask (mobile overlay) ===== */
+.layout-mask {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 999;
+}
+
+/* ===== Layout modes ===== */
+
+/* Static layout - sidebar collapses on desktop */
+.layout-static .layout-sidebar {
+  transform: translateX(0);
+}
+
+.layout-static-inactive .layout-sidebar {
+  transform: translateX(-100%);
+}
+
+.layout-static-inactive .layout-main-container {
+  margin-left: 0;
+}
+
+/* Overlay layout */
+.layout-overlay .layout-sidebar {
+  transform: translateX(-100%);
+}
+
+.layout-overlay .layout-main-container {
+  margin-left: 0;
+}
+
+.layout-overlay-active .layout-sidebar {
+  transform: translateX(0);
+}
+
+.layout-overlay-active .layout-mask {
+  display: block;
+}
+
+/* Mobile layout */
+@media (max-width: 991px) {
+  .layout-sidebar {
+    transform: translateX(-100%);
+  }
+
+  .layout-main-container {
+    margin-left: 0;
+  }
+
+  .layout-mobile-active .layout-sidebar {
+    transform: translateX(0);
+  }
+
+  .layout-mobile-active .layout-mask {
+    display: block;
+  }
+}
+
+/* ===== Grid utilities (using PrimeNG/PrimeFlex style) ===== */
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  margin: -0.5rem;
+}
+
+.col-12 {
+  width: 100%;
+  padding: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  .md\:col-6 {
+    width: 50%;
+  }
+}
+
+@media (min-width: 992px) {
+  .lg\:col-3 {
+    width: 25%;
+  }
+}
+
+/* ===== Flex utilities ===== */
+.flex {
+  display: flex;
+}
+
+.flex-column {
+  flex-direction: column;
+}
+
+.flex-wrap {
+  flex-wrap: wrap;
+}
+
+.align-items-center {
+  align-items: center;
+}
+
+.justify-content-between {
+  justify-content: space-between;
+}
+
+.gap-3 {
+  gap: 1rem;
+}
+
+/* ===== Spacing utilities ===== */
+.mt-2 {
+  margin-top: 0.5rem;
+}
+
+.mt-4 {
+  margin-top: 1.5rem;
+}
+
+.p-4 {
+  padding: 1.5rem;
+}
+
+/* ===== Text utilities ===== */
+.text-center {
+  text-align: center;
+}
+
+.no-underline {
+  text-decoration: none;
+}
+
+/* ===== Dark mode ===== */
+.app-dark {
+  --surface-ground: #121212;
+  --surface-card: #1e1e1e;
+  --surface-border: #383838;
+  --surface-hover: #383838;
+  --text-color: rgba(255, 255, 255, 0.87);
+  --text-color-secondary: rgba(255, 255, 255, 0.6);
+}
