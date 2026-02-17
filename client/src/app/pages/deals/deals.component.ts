@@ -35,6 +35,7 @@ interface FilterOption {
       <p-table
         #dt
         [value]="deals()"
+        [loading]="loading()"
         [paginator]="true"
         [rows]="10"
         [rowsPerPageOptions]="[10, 25, 50]"
@@ -192,6 +193,7 @@ export class DealsComponent {
   private dealsService = inject(DealsService);
   private table = viewChild<Table>('dt');
 
+  loading = this.dealsService.loading;
   selectedStore = signal<string | null>(null);
   selectedDepartment = signal<string | null>(null);
 
