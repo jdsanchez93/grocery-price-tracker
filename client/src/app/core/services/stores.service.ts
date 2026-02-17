@@ -8,12 +8,14 @@ import {
   AvailableStoresResponse
 } from '../models/store.model';
 import { StoreType, STORE_TYPE_METADATA } from '../models/deal.model';
+import { DealsService } from './deals.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class StoresService {
   private http = inject(HttpClient);
+  private dealsService = inject(DealsService);
 
   private userStores = signal<UserStore[]>([]);
   private availableStores = signal<AvailableStore[]>([]);
@@ -55,6 +57,7 @@ export class StoresService {
     this.http.post(`${environment.apiUrl}/me/stores/${instanceId}`, {}).subscribe({
       next: () => {
         this.loadUserStores();
+        this.dealsService.loadDeals();
       },
       error: (err) => {
         this.error.set(err.message || 'Failed to add store');
@@ -73,6 +76,7 @@ export class StoresService {
     this.http.delete(`${environment.apiUrl}/me/stores/${instanceId}`).subscribe({
       next: () => {
         this.loadUserStores();
+        this.dealsService.loadDeals();
       },
       error: (err) => {
         this.error.set(err.message || 'Failed to remove store');
