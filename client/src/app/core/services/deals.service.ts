@@ -45,7 +45,7 @@ export class DealsService {
   /**
    * Get all deals.
    */
-  getDeals = computed(() => this.deals());
+  getDeals = this.deals.asReadonly();
 
   /**
    * Get unique store instance IDs from the deals.
