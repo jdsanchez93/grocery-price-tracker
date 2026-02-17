@@ -2,11 +2,12 @@ import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { LayoutService } from '../services/layout.service';
+import { AuthButtonsComponent } from '../../core/components/auth/auth-buttons.component';
 
 @Component({
   selector: 'app-topbar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterModule, CommonModule],
+  imports: [RouterModule, CommonModule, AuthButtonsComponent],
   template: `
     <div class="layout-topbar">
       <div class="layout-topbar-logo-container">
@@ -34,6 +35,7 @@ import { LayoutService } from '../services/layout.service';
             <i [class]="layoutService.isDarkTheme() ? 'pi pi-sun' : 'pi pi-moon'"></i>
           </button>
         </div>
+        <app-auth-buttons />
       </div>
     </div>
   `
