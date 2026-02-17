@@ -38,7 +38,7 @@ import {
 import { searchDeals } from './scraper/products';
 
 export function createApp() {
-  const app = new Hono();
+  const app = new Hono().basePath('/api');
 
   app.get('/', (c) => c.text('Grocery Price Tracker API'));
 

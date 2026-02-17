@@ -1,16 +1,46 @@
-import { Injectable, signal, computed } from '@angular/core';
-import { Deal, getStoreDisplayName, getStoreTypeFromInstanceId, StoreType } from '../models/deal.model';
-import { MOCK_DEALS } from '../data/mock-deals';
+import { Injectable, inject, signal, computed } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Deal, getStoreDisplayName } from '../models/deal.model';
+import { environment } from '../../../environments/environment';
 
-/**
- * Service for managing deal data.
- * Currently uses mock data, will be updated to use real API calls later.
- */
+interface DealsResponse {
+  weekId: string;
+  deals: Deal[];
+  count: number;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class DealsService {
-  private deals = signal<Deal[]>(MOCK_DEALS);
+  private http = inject(HttpClient);
+
+  private deals = signal<Deal[]>([]);
+  loading = signal(false);
+  error = signal<string | null>(null);
+
+  constructor() {
+    this.loadDeals();
+  }
+
+  /**
+   * Load deals from the API.
+   */
+  loadDeals(): void {
+    this.loading.set(true);
+    this.error.set(null);
+
+    this.http.get<DealsResponse>(`${environment.apiUrl}/me/deals`).subscribe({
+      next: (response) => {
+        this.deals.set(response.deals);
+        this.loading.set(false);
+      },
+      error: (err) => {
+        this.error.set(err.message || 'Failed to load deals');
+        this.loading.set(false);
+      }
+    });
+  }
 
   /**
    * Get all deals.
