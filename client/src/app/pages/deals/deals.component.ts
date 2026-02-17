@@ -175,6 +175,17 @@ interface FilterOption {
     .text-sm {
       font-size: 0.875rem;
     }
+
+    /* Hide column titles on desktop - only show in stacked/mobile mode */
+    :host ::ng-deep .p-datatable-tbody > tr > td > .p-column-title {
+      display: none;
+    }
+
+    :host ::ng-deep .p-datatable-stacked-tbody > tr > td > .p-column-title {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
   `]
 })
 export class DealsComponent {
