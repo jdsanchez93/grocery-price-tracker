@@ -110,12 +110,12 @@ export class StoresService {
   /**
    * Get user's stores.
    */
-  getUserStores = computed(() => this.userStores());
+  getUserStores = this.userStores.asReadonly();
 
   /**
    * Get available stores.
    */
-  getAvailableStores = computed(() => this.availableStores());
+  getAvailableStores = this.availableStores.asReadonly();
 
   /**
    * Get user's stores grouped by store type.
