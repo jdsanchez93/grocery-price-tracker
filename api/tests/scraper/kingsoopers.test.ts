@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { standardizeKingSoopersAd, StandardDeal } from '../../src/scraper/kingsoopers';
+import { describe, it, expect, vi, type MockInstance, beforeEach, afterEach } from 'vitest';
+import { standardizeKingSoopersAd, StandardDeal, fetchWeeklyDeals, _resetTokenCache } from '../../src/scraper/kingsoopers';
 
 describe('standardizeKingSoopersAd', () => {
   describe('2FOR deals', () => {
@@ -246,5 +246,370 @@ describe('standardizeKingSoopersAd', () => {
 
       expect(result.dept).toBe('Grocery, Bakery');
     });
+  });
+});
+
+describe('fetchWeeklyDeals - BOGO price resolution', () => {
+  let fetchSpy: MockInstance<typeof global.fetch>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(global, 'fetch');
+    vi.stubEnv('KROGER_CLIENT_ID', 'test-client-id');
+    vi.stubEnv('KROGER_CLIENT_SECRET', 'test-client-secret');
+    _resetTokenCache();
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
+  const DEALS_URL = 'https://www.kingsoopers.com/atlas/v1/shoppable-weekly-deals/deals';
+  const TOKEN_URL = 'https://api.kroger.com/v1/connect/oauth2/token';
+
+  function isProductUrl(url: string): boolean {
+    return url.includes('api.kroger.com/v1/products') && url.includes('filter.productId=');
+  }
+
+  function isTokenUrl(url: string): boolean {
+    return url.includes(TOKEN_URL);
+  }
+
+  function tokenResponse(): Response {
+    return mockResponse({ access_token: 'test-token', expires_in: 1800 });
+  }
+
+  function mockResponse(body: unknown, ok = true): Response {
+    return {
+      ok,
+      status: ok ? 200 : 500,
+      json: () => Promise.resolve(body),
+      text: () => Promise.resolve(JSON.stringify(body)),
+    } as Response;
+  }
+
+  it('should resolve price using min and attach variants with multiple products', async () => {
+    fetchSpy.mockImplementation(async (input) => {
+      const url = input.toString();
+
+      if (url.includes(DEALS_URL) && !url.includes('/deal-123')) {
+        return mockResponse({
+          data: {
+            shoppableWeeklyDeals: {
+              ads: [{
+                id: 'deal-123',
+                mainlineCopy: 'Ice Cream',
+                pricingTemplate: '_KRGR_BOGO',
+                buyQuantity: 1,
+                getQuantity: 1,
+              }],
+            },
+          },
+        });
+      }
+
+      if (url.includes(DEALS_URL + '/deal-123')) {
+        return mockResponse({
+          data: {
+            shoppableWeeklyDealDetails: {
+              upcs: [{ upc: '0007283008114' }, { upc: '0007283008115' }, { upc: '0007283008116' }],
+            },
+          },
+        });
+      }
+
+      if (isTokenUrl(url)) return tokenResponse();
+
+      if (isProductUrl(url)) {
+        return mockResponse({
+          data: [
+            { description: 'Tillamook Vanilla Bean Ice Cream', items: [{ price: { regular: 7.49 } }] },
+            { description: 'Tillamook Marionberry Pie', items: [{ price: { regular: 7.49 } }] },
+            { description: 'Tillamook Extra Creamy Vanilla', items: [{ price: { regular: 6.99 } }] },
+          ],
+        });
+      }
+
+      return mockResponse({}, false);
+    });
+
+    const deals = await fetchWeeklyDeals('circ-1', 'store-1', 'fac-1');
+
+    expect(deals).toHaveLength(1);
+    // Uses min price (6.99) for priceNumber
+    expect(deals[0].priceNumber).toBeCloseTo(3.495); // 6.99 / 2
+    // Shows price range in display
+    expect(deals[0].priceDisplay).toBe('Buy 1 Get 1 Free ($6.99 - $7.49 each)');
+    expect(deals[0].quantity).toBe(2);
+    // Attaches sorted variants with example product names
+    expect(deals[0].priceVariants).toEqual([
+      { price: 6.99, example: 'Tillamook Extra Creamy Vanilla' },
+      { price: 7.49, example: 'Tillamook Vanilla Bean Ice Cream' },
+    ]);
+  });
+
+  it('should resolve single-price BOGO without range in display', async () => {
+    fetchSpy.mockImplementation(async (input) => {
+      const url = input.toString();
+
+      if (url.includes(DEALS_URL) && !url.includes('/deal-single')) {
+        return mockResponse({
+          data: {
+            shoppableWeeklyDeals: {
+              ads: [{
+                id: 'deal-single',
+                mainlineCopy: 'Yogurt',
+                pricingTemplate: '_KRGR_BOGO',
+                buyQuantity: 1,
+                getQuantity: 1,
+              }],
+            },
+          },
+        });
+      }
+
+      if (url.includes(DEALS_URL + '/deal-single')) {
+        return mockResponse({
+          data: {
+            shoppableWeeklyDealDetails: {
+              upcs: [{ upc: '0001111041700' }],
+            },
+          },
+        });
+      }
+
+      if (isTokenUrl(url)) return tokenResponse();
+
+      if (isProductUrl(url)) {
+        return mockResponse({
+          data: [
+            { description: 'Chobani Greek Yogurt', items: [{ price: { regular: 5.99 } }] },
+          ],
+        });
+      }
+
+      return mockResponse({}, false);
+    });
+
+    const deals = await fetchWeeklyDeals('circ-1', 'store-1', 'fac-1');
+
+    expect(deals).toHaveLength(1);
+    expect(deals[0].priceNumber).toBeCloseTo(2.995); // 5.99 / 2
+    expect(deals[0].priceDisplay).toBe('Buy 1 Get 1 Free ($5.99 each)');
+    expect(deals[0].priceVariants).toEqual([
+      { price: 5.99, example: 'Chobani Greek Yogurt' },
+    ]);
+  });
+
+  it('should compute effective per-unit price for weight-sold items', async () => {
+    fetchSpy.mockImplementation(async (input) => {
+      const url = input.toString();
+
+      if (url.includes(DEALS_URL) && !url.includes('/deal-chicken')) {
+        return mockResponse({
+          data: {
+            shoppableWeeklyDeals: {
+              ads: [{
+                id: 'deal-chicken',
+                mainlineCopy: 'Chicken Breast',
+                pricingTemplate: '_KRGR_BOGO',
+                buyQuantity: 1,
+                getQuantity: 1,
+              }],
+            },
+          },
+        });
+      }
+
+      if (url.includes(DEALS_URL + '/deal-chicken')) {
+        return mockResponse({
+          data: {
+            shoppableWeeklyDealDetails: {
+              upcs: [{ upc: '0027061550000' }, { upc: '0027061550001' }],
+            },
+          },
+        });
+      }
+
+      if (isTokenUrl(url)) return tokenResponse();
+
+      if (isProductUrl(url)) {
+        return mockResponse({
+          data: [
+            {
+              description: 'Heritage Farm Chicken Breast',
+              items: [{ price: { regular: 5.49 }, soldBy: 'WEIGHT' }],
+              itemInformation: { averageWeightPerUnit: '3.24 [lb_av]' },
+            },
+            {
+              description: 'Heritage Farm Chicken Thighs',
+              items: [{ price: { regular: 5.49 }, soldBy: 'WEIGHT' }],
+              itemInformation: { averageWeightPerUnit: '2.50 [lb_av]' },
+            },
+          ],
+        });
+      }
+
+      return mockResponse({}, false);
+    });
+
+    const deals = await fetchWeeklyDeals('circ-1', 'store-1', 'fac-1');
+
+    expect(deals).toHaveLength(1);
+    // Min effective price: 5.49 * 2.50 = 13.73, BOGO: 13.73 / 2 = 6.865
+    expect(deals[0].priceNumber).toBeCloseTo(6.8625);
+    expect(deals[0].priceDisplay).toBe('Buy 1 Get 1 Free ($13.73 - $17.79 each)');
+    expect(deals[0].priceVariants).toEqual([
+      { price: 13.73, example: 'Heritage Farm Chicken Thighs', perLb: 5.49, avgWeight: 2.5 },
+      { price: 17.79, example: 'Heritage Farm Chicken Breast', perLb: 5.49, avgWeight: 3.24 },
+    ]);
+  });
+
+  it('should retain null price when deal detail endpoint fails', async () => {
+    fetchSpy.mockImplementation(async (input) => {
+      const url = input.toString();
+
+      if (url.includes(DEALS_URL) && !url.includes('/deal-456')) {
+        return mockResponse({
+          data: {
+            shoppableWeeklyDeals: {
+              ads: [{
+                id: 'deal-456',
+                mainlineCopy: 'Ice Cream',
+                pricingTemplate: '_KRGR_BOGO',
+                buyQuantity: 1,
+                getQuantity: 1,
+              }],
+            },
+          },
+        });
+      }
+
+      // Deal detail returns error
+      if (url.includes(DEALS_URL + '/deal-456')) {
+        return mockResponse({}, false);
+      }
+
+      return mockResponse({}, false);
+    });
+
+    const deals = await fetchWeeklyDeals('circ-1', 'store-1', 'fac-1');
+
+    expect(deals).toHaveLength(1);
+    expect(deals[0].priceNumber).toBeNull();
+    expect(deals[0].priceDisplay).toBe('Buy 1 Get 1 Free');
+  });
+
+  it('should retain null price when product endpoint fails', async () => {
+    fetchSpy.mockImplementation(async (input) => {
+      const url = input.toString();
+
+      if (url.includes(DEALS_URL) && !url.includes('/deal-789')) {
+        return mockResponse({
+          data: {
+            shoppableWeeklyDeals: {
+              ads: [{
+                id: 'deal-789',
+                mainlineCopy: 'Cheese',
+                pricingTemplate: '_KRGR_BOGO',
+                buyQuantity: 1,
+                getQuantity: 1,
+              }],
+            },
+          },
+        });
+      }
+
+      if (url.includes(DEALS_URL + '/deal-789')) {
+        return mockResponse({
+          data: {
+            shoppableWeeklyDealDetails: {
+              upcs: [{ upc: '0001111099999' }],
+            },
+          },
+        });
+      }
+
+      // Token fetch
+      if (isTokenUrl(url)) return tokenResponse();
+
+      // Product endpoint fails
+      if (isProductUrl(url)) {
+        return mockResponse({}, false);
+      }
+
+      return mockResponse({}, false);
+    });
+
+    const deals = await fetchWeeklyDeals('circ-1', 'store-1', 'fac-1');
+
+    expect(deals).toHaveLength(1);
+    expect(deals[0].priceNumber).toBeNull();
+    expect(deals[0].priceDisplay).toBe('Buy 1 Get 1 Free');
+  });
+
+  it('should not attempt resolution for non-BOGO deals with null price', async () => {
+    fetchSpy.mockImplementation(async (input) => {
+      const url = input.toString();
+
+      if (url.includes(DEALS_URL) && !url.includes('/deal-')) {
+        return mockResponse({
+          data: {
+            shoppableWeeklyDeals: {
+              ads: [{
+                id: 'deal-abc',
+                mainlineCopy: 'Mystery Item',
+                // No pricingTemplate — not BOGO
+              }],
+            },
+          },
+        });
+      }
+
+      // Should never be called
+      throw new Error('Unexpected fetch call: ' + url);
+    });
+
+    const deals = await fetchWeeklyDeals('circ-1', 'store-1', 'fac-1');
+
+    expect(deals).toHaveLength(1);
+    expect(deals[0].priceNumber).toBeNull();
+    expect(deals[0].priceDisplay).toBe('See store for details');
+    // Only the initial deals fetch should have been called
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should not re-fetch for BOGO deal that already has retailPrice', async () => {
+    fetchSpy.mockImplementation(async (input) => {
+      const url = input.toString();
+
+      if (url.includes(DEALS_URL) && !url.includes('/deal-')) {
+        return mockResponse({
+          data: {
+            shoppableWeeklyDeals: {
+              ads: [{
+                id: 'deal-existing',
+                mainlineCopy: 'Ice Cream',
+                pricingTemplate: '_KRGR_BOGO',
+                retailPrice: '5.99',
+                buyQuantity: 1,
+                getQuantity: 1,
+              }],
+            },
+          },
+        });
+      }
+
+      // Should never be called — already has price
+      throw new Error('Unexpected fetch call: ' + url);
+    });
+
+    const deals = await fetchWeeklyDeals('circ-1', 'store-1', 'fac-1');
+
+    expect(deals).toHaveLength(1);
+    expect(deals[0].priceNumber).toBeCloseTo(2.995); // 5.99 / 2
+    expect(deals[0].priceDisplay).toBe('Buy 1 Get 1 Free ($5.99 each)');
+    // Only the initial deals fetch should have been called
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });

@@ -4,7 +4,6 @@ import {
   fetchAndPersistWeeklyDeals,
   fetchCirculars,
   extractWeeklyAdMetadata,
-  DEFAULT_CIRCULAR_ID,
 } from './scraper/kingsoopers';
 import {
   fetchPublications as fetchSafewayPublications,
@@ -148,12 +147,12 @@ export function createApp() {
 
   // Preview deals from King Soopers API (no persist)
   app.get('/admin/kingsoopers/deals', async (c) => {
-    const circularId = c.req.query('circularId') ?? DEFAULT_CIRCULAR_ID;
+    const circularId = c.req.query('circularId');
     const storeId = c.req.query('storeId');
     const facilityId = c.req.query('facilityId');
 
-    if (!storeId || !facilityId) {
-      return c.json({ error: 'storeId and facilityId are required' }, 400);
+    if (!storeId || !facilityId || !circularId) {
+      return c.json({ error: 'storeId, facilityId, and circularId are required' }, 400);
     }
 
     const deals = await fetchWeeklyDeals(circularId, storeId, facilityId);
@@ -162,13 +161,13 @@ export function createApp() {
 
   // Manual scrape: fetch and persist deals to DynamoDB
   app.post('/admin/kingsoopers/scrape', async (c) => {
-    const circularId = c.req.query('circularId') ?? DEFAULT_CIRCULAR_ID;
+    const circularId = c.req.query('circularId');
     const storeId = c.req.query('storeId');
     const facilityId = c.req.query('facilityId');
     const storeName = c.req.query('storeName');
 
-    if (!storeId || !facilityId) {
-      return c.json({ error: 'storeId and facilityId are required' }, 400);
+    if (!storeId || !facilityId || !circularId) {
+      return c.json({ error: 'storeId, facilityId, and circularId are required' }, 400);
     }
 
     const weekId = c.req.query('weekId') ?? getCurrentWeekId();

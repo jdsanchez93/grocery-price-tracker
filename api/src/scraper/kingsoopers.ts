@@ -3,6 +3,7 @@ import { getCurrentWeekId } from '../types/database';
 import { findCanonicalProductId } from './products';
 
 interface KingSoopersAd {
+  id?: string;
   mainlineCopy?: string;
   underlineCopy?: string;
   description?: string;
@@ -19,6 +20,13 @@ interface KingSoopersAd {
   images?: { url: string }[];
 }
 
+export interface PriceVariant {
+  price: number;
+  example: string;
+  perLb?: number;
+  avgWeight?: number;
+}
+
 export interface StandardDeal {
   store: string;
   name: string | undefined;
@@ -29,6 +37,7 @@ export interface StandardDeal {
   quantity: number;
   loyalty: string | undefined;
   image: string | undefined;
+  priceVariants?: PriceVariant[];
 }
 
 interface LafObject {
@@ -37,10 +46,10 @@ interface LafObject {
   listingKeys: string[];
 }
 
-// export const DEFAULT_CIRCULAR_ID = "3dd6895e-b069-4ec9-af91-18799639bac9";
-export const DEFAULT_CIRCULAR_ID = "4dd83448-40a7-4886-8810-c6eed434b2d2"
-const DEALS_URL =
-  "https://www.kingsoopers.com/atlas/v1/shoppable-weekly-deals/deals";
+const DEALS_URL ="https://www.kingsoopers.com/atlas/v1/shoppable-weekly-deals/deals";
+const DEAL_DETAIL_URL = "https://www.kingsoopers.com/atlas/v1/shoppable-weekly-deals/deals";
+const PRODUCT_URL = "https://api.kroger.com/v1/products";
+const KROGER_TOKEN_URL = "https://api.kroger.com/v1/connect/oauth2/token";
 
 const DEFAULT_MODALITY_TYPE = "IN_STORE";
 
@@ -56,6 +65,18 @@ function buildLafObject(
       listingKeys: [storeId],
     },
   ];
+}
+
+function buildKrogerHeaders(storeId: string, facilityId: string): Record<string, string> {
+  const lafObject = buildLafObject(storeId, facilityId);
+  return {
+    Accept: "application/json",
+    "x-kroger-channel": "WEB",
+    "x-facility-id": storeId,
+    "x-modality-type": DEFAULT_MODALITY_TYPE,
+    "x-modality": JSON.stringify({ type: DEFAULT_MODALITY_TYPE, locationId: storeId }),
+    "x-laf-object": JSON.stringify(lafObject),
+  };
 }
 
 interface Circular {
@@ -90,20 +111,11 @@ export async function fetchCirculars(
   storeId: string,
   facilityId: string
 ): Promise<{ weeklyAdCircularId: string | null; circulars: Circular[] }> {
-  const lafObject = buildLafObject(storeId, facilityId);
+  const headers = buildKrogerHeaders(storeId, facilityId);
 
   const response = await fetch(
     'https://api.kroger.com/digitalads/v1/circulars?filter.tags=SHOPPABLE&filter.tags=CLASSIC_VIEW',
-    {
-      headers: {
-        Accept: 'application/json',
-        'x-kroger-channel': 'WEB',
-        'x-facility-id': storeId,
-        'x-modality-type': DEFAULT_MODALITY_TYPE,
-        'x-modality': JSON.stringify({ type: DEFAULT_MODALITY_TYPE, locationId: storeId }),
-        'x-laf-object': JSON.stringify(lafObject),
-      },
-    }
+    { headers }
   );
 
   if (!response.ok) {
@@ -204,6 +216,187 @@ export function standardizeKingSoopersAd(ad: KingSoopersAd): StandardDeal {
   };
 }
 
+async function fetchDealDetails(
+  dealId: string,
+  circularId: string,
+  headers: Record<string, string>
+): Promise<string[]> {
+  const url = new URL(`${DEAL_DETAIL_URL}/${dealId}`);
+  url.searchParams.set("filter.circularId", circularId);
+
+  const response = await fetch(url.toString(), { headers });
+  if (!response.ok) return [];
+
+  const json = await response.json();
+  return (json.data?.shoppableWeeklyDealDetails?.upcs || []).map((u: { upc: string }) => u.upc);
+}
+
+interface ProductPriceResponse {
+  data?: {
+    description?: string;
+    items?: {
+      price?: {
+        regular?: number;
+        promo?: number;
+      };
+      soldBy?: string;
+    }[];
+    itemInformation?: {
+      averageWeightPerUnit?: string;
+    };
+  }[];
+}
+
+let cachedToken: { token: string; expiresAt: number } | null = null;
+
+/** @internal Reset cached OAuth token (for testing) */
+export function _resetTokenCache() {
+  cachedToken = null;
+}
+
+async function getKrogerToken(): Promise<string | null> {
+  if (cachedToken && Date.now() < cachedToken.expiresAt) {
+    return cachedToken.token;
+  }
+
+  const clientId = process.env.KROGER_CLIENT_ID;
+  const clientSecret = process.env.KROGER_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null;
+
+  const response = await fetch(KROGER_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
+    },
+    body: `grant_type=client_credentials&scope=${process.env.KROGER_SCOPES || "product.compact"}`,
+  });
+
+  if (!response.ok) return null;
+
+  const json = await response.json();
+  cachedToken = {
+    token: json.access_token,
+    expiresAt: Date.now() + (json.expires_in - 60) * 1000, // refresh 60s early
+  };
+  return cachedToken.token;
+}
+
+async function fetchProductPrices(
+  upcs: string[],
+  locationId: string
+): Promise<PriceVariant[]> {
+  if (upcs.length === 0) return [];
+
+  const token = await getKrogerToken();
+  if (!token) return [];
+  const variants: PriceVariant[] = [];
+  const seenPrices = new Set<string>(); // "price|perLb|avgWeight" to dedupe
+
+  // Batch UPC lookups in groups of 15
+  const PRODUCT_BATCH_SIZE = 15;
+  for (let i = 0; i < upcs.length; i += PRODUCT_BATCH_SIZE) {
+    const batch = upcs.slice(i, i + PRODUCT_BATCH_SIZE);
+    const url = new URL(PRODUCT_URL);
+    url.searchParams.set("filter.productId", batch.join(","));
+    url.searchParams.set("filter.locationId", locationId);
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) continue;
+
+    const json: ProductPriceResponse = await response.json();
+    for (const product of json.data || []) {
+      const name = product.description || 'Unknown';
+      const avgWeightStr = product.itemInformation?.averageWeightPerUnit;
+      const avgWeight = avgWeightStr ? parseFloat(avgWeightStr) : undefined;
+
+      for (const item of product.items || []) {
+        if (item.price?.regular == null) continue;
+
+        const perLb = item.price.regular;
+        const isByWeight = item.soldBy === 'WEIGHT' && avgWeight;
+        const effectivePrice = isByWeight
+          ? Math.round(perLb * avgWeight! * 100) / 100
+          : perLb;
+
+        const key = `${effectivePrice}`;
+        if (seenPrices.has(key)) continue;
+        seenPrices.add(key);
+
+        const variant: PriceVariant = { price: effectivePrice, example: name };
+        if (isByWeight) {
+          variant.perLb = perLb;
+          variant.avgWeight = avgWeight;
+        }
+        variants.push(variant);
+      }
+    }
+  }
+
+  variants.sort((a, b) => a.price - b.price);
+  return variants;
+}
+
+async function resolveBogoPrices(
+  ads: KingSoopersAd[],
+  deals: StandardDeal[],
+  circularId: string,
+  headers: Record<string, string>
+): Promise<void> {
+  const bogoIndices: number[] = [];
+  for (let i = 0; i < ads.length; i++) {
+    const isBogo = ads[i].pricingTemplate === "_KRGR_BOGO"
+      || ads[i].pricingTemplate === "_KRGR_BOGO %";
+    if (isBogo && deals[i].priceNumber === null && ads[i].id) {
+      bogoIndices.push(i);
+    }
+  }
+  if (bogoIndices.length === 0) return;
+
+  const BATCH_SIZE = 5;
+  for (let i = 0; i < bogoIndices.length; i += BATCH_SIZE) {
+    const batch = bogoIndices.slice(i, i + BATCH_SIZE);
+    await Promise.all(batch.map(async (idx) => {
+      const ad = ads[idx];
+      const name = ad.mainlineCopy || 'unknown';
+      if (!ad.id) {
+        console.warn(`[BOGO] Deal "${name}" has no id, skipping price resolution`);
+        return;
+      }
+      try {
+        const upcs = await fetchDealDetails(ad.id, circularId, headers);
+        if (upcs.length === 0) {
+          console.warn(`[BOGO] Deal "${name}" (${ad.id}): no UPCs returned from detail endpoint`);
+          return;
+        }
+        const variants = await fetchProductPrices(upcs, headers["x-facility-id"]);
+        if (variants.length === 0) {
+          console.warn(`[BOGO] Deal "${name}" (${ad.id}): no prices found for ${upcs.length} UPCs`);
+          return;
+        }
+        const minPrice = variants[0].price; // sorted ascending
+        const deal = standardizeKingSoopersAd({ ...ad, retailPrice: minPrice.toString() });
+        if (variants.length > 1) {
+          const maxPrice = variants[variants.length - 1].price;
+          deal.priceDisplay = deal.priceDisplay.replace(
+            `$${minPrice}`,
+            `$${minPrice} - $${maxPrice}`
+          );
+        }
+        deal.priceVariants = variants;
+        deals[idx] = deal;
+      } catch (err) {
+        console.warn(`[BOGO] Deal "${name}" (${ad.id}): price resolution failed`, err);
+      }
+    }));
+  }
+}
+
 interface KingSoopersApiResponse {
   data?: {
     shoppableWeeklyDeals?: {
@@ -217,16 +410,7 @@ export async function fetchWeeklyDeals(
   storeId: string,
   facilityId: string
 ): Promise<StandardDeal[]> {
-  const lafObject = buildLafObject(storeId, facilityId);
-
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-    "x-kroger-channel": "WEB",
-    "x-facility-id": storeId,
-    "x-modality-type": DEFAULT_MODALITY_TYPE,
-    "x-modality": JSON.stringify({ type: DEFAULT_MODALITY_TYPE, locationId: storeId }),
-    "x-laf-object": JSON.stringify(lafObject),
-  };
+  const headers = buildKrogerHeaders(storeId, facilityId);
 
   const url = new URL(DEALS_URL);
   url.searchParams.set("filter.circularId", circularId);
@@ -243,8 +427,12 @@ export async function fetchWeeklyDeals(
 
   const json: KingSoopersApiResponse = await response.json();
   const ads = json.data?.shoppableWeeklyDeals?.ads || [];
+  const deals = ads.map(standardizeKingSoopersAd);
 
-  return ads.map(standardizeKingSoopersAd);
+  // Resolve prices for BOGO deals missing price data
+  await resolveBogoPrices(ads, deals, circularId, headers);
+
+  return deals;
 }
 
 /**
