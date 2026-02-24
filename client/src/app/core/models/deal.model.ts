@@ -1,3 +1,10 @@
+export interface PriceVariant {
+  price: number;
+  example: string;
+  perLb?: number;
+  avgWeight?: number;
+}
+
 /**
  * Deal model for the client-side application.
  * Simplified version of the API's DealItem, without DynamoDB-specific fields.
@@ -14,6 +21,7 @@ export interface Deal {
   quantity: number;
   loyalty: string | undefined;
   image: string | undefined;
+  priceVariants?: PriceVariant[];
 }
 
 /**

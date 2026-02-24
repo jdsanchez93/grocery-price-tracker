@@ -1,6 +1,8 @@
 import { writeDeals, writeCircular } from '../db/client';
-import { getCurrentWeekId } from '../types/database';
+import { getCurrentWeekId, PriceVariant } from '../types/database';
 import { findCanonicalProductId } from './products';
+
+export type { PriceVariant } from '../types/database';
 
 interface KingSoopersAd {
   id?: string;
@@ -18,13 +20,6 @@ interface KingSoopersAd {
   disclaimer?: string;
   loyaltyIndicator?: string;
   images?: { url: string }[];
-}
-
-export interface PriceVariant {
-  price: number;
-  example: string;
-  perLb?: number;
-  avgWeight?: number;
 }
 
 export interface StandardDeal {

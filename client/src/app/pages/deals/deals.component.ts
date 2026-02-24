@@ -2,6 +2,7 @@ import { Component, inject, ChangeDetectionStrategy, signal, computed, viewChild
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TableModule, Table } from 'primeng/table';
+import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { TagModule } from 'primeng/tag';
@@ -22,6 +23,7 @@ interface FilterOption {
     CommonModule,
     FormsModule,
     TableModule,
+    ButtonModule,
     InputTextModule,
     SelectModule,
     TagModule,
@@ -43,6 +45,7 @@ interface FilterOption {
         [tableStyle]="{ 'min-width': '75rem' }"
         responsiveLayout="stack"
         [breakpoint]="'960px'"
+        dataKey="dealId"
       >
         <ng-template #caption>
           <div class="flex flex-wrap gap-3 align-items-center justify-content-between">
@@ -80,6 +83,7 @@ interface FilterOption {
 
         <ng-template #header>
           <tr>
+            <th style="width: 3rem"></th>
             <th pSortableColumn="name" style="min-width: 200px">
               Product <p-sortIcon field="name" />
             </th>
@@ -97,8 +101,20 @@ interface FilterOption {
           </tr>
         </ng-template>
 
-        <ng-template #body let-deal>
+        <ng-template #body let-deal let-expanded="expanded">
           <tr>
+            <td>
+              @if (deal.priceVariants?.length > 1) {
+                <p-button
+                  type="button"
+                  [pRowToggler]="deal"
+                  [text]="true"
+                  [rounded]="true"
+                  [icon]="expanded ? 'pi pi-chevron-down' : 'pi pi-chevron-right'"
+                  [attr.aria-label]="expanded ? 'Collapse variants' : 'Expand variants'"
+                />
+              }
+            </td>
             <td>
               <span class="p-column-title">Product</span>
               <div>
@@ -139,9 +155,41 @@ interface FilterOption {
           </tr>
         </ng-template>
 
+        <ng-template #expandedrow let-deal>
+          <tr>
+            <td colspan="7">
+              <div class="variant-container">
+                <table class="variant-table">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (variant of deal.priceVariants; track variant.price) {
+                      <tr>
+                        <td>{{ variant.example }}</td>
+                        <td>
+                          {{ variant.price | currency }}
+                          @if (variant.perLb) {
+                            <span class="text-sm text-secondary">
+                              ({{ variant.perLb | currency }}/lb, ~{{ variant.avgWeight }}lb avg)
+                            </span>
+                          }
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </td>
+          </tr>
+        </ng-template>
+
         <ng-template #emptymessage>
           <tr>
-            <td colspan="6" class="text-center p-4">
+            <td colspan="7" class="text-center p-4">
               No deals found. Try adjusting your filters.
             </td>
           </tr>
@@ -186,6 +234,34 @@ interface FilterOption {
       display: block;
       font-weight: 600;
       margin-bottom: 0.25rem;
+    }
+
+    .variant-container {
+      padding: 0.5rem 1rem 0.5rem 3rem;
+    }
+
+    .variant-table {
+      width: 100%;
+      max-width: 500px;
+      border-collapse: collapse;
+    }
+
+    .variant-table th,
+    .variant-table td {
+      padding: 0.4rem 0.75rem;
+      text-align: left;
+    }
+
+    .variant-table th {
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--text-color-secondary);
+      border-bottom: 1px solid var(--surface-border);
+    }
+
+    .variant-table td {
+      font-size: 0.875rem;
+      border-bottom: 1px solid var(--surface-border);
     }
   `]
 })

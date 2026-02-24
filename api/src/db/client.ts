@@ -61,6 +61,9 @@ export async function writeDeal(
     loyalty: deal.loyalty,
     image: deal.image,
     canonicalProductId,
+    ...(deal.priceVariants && deal.priceVariants.length > 0 && {
+      priceVariants: deal.priceVariants,
+    }),
     createdAt: now,
     updatedAt: now,
     // GSI1 for price history (only if we have a canonical product)
@@ -112,6 +115,9 @@ export async function writeDeals(
         loyalty: deal.loyalty,
         image: deal.image,
         canonicalProductId,
+        ...(deal.priceVariants && deal.priceVariants.length > 0 && {
+          priceVariants: deal.priceVariants,
+        }),
         createdAt: now,
         updatedAt: now,
         ...(canonicalProductId && {

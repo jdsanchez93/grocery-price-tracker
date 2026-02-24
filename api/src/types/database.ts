@@ -65,6 +65,13 @@ export interface BaseItem {
   updatedAt: string;
 }
 
+export interface PriceVariant {
+  price: number;
+  example: string;
+  perLb?: number;
+  avgWeight?: number;
+}
+
 export interface DealItem extends BaseItem {
   entityType: 'DEAL';
   dealId: string;
@@ -79,6 +86,7 @@ export interface DealItem extends BaseItem {
   loyalty: string | undefined;
   image: string | undefined;
   canonicalProductId?: string;
+  priceVariants?: PriceVariant[];
 }
 
 // Store instance (specific physical location)
