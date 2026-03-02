@@ -22,7 +22,6 @@ import {
   getPriceHistory,
   getStoreInstancesByType,
   getStoreInstance,
-  getOrCreateStoreInstance,
   writeStoreInstance,
   getCircular,
   deleteCircularAndDeals,
@@ -31,7 +30,6 @@ import {
   getCurrentWeekId,
   StoreType,
   StoreIdentifiers,
-  generateStoreInstanceId,
   STORE_TYPE_METADATA,
 } from './types/database';
 import { searchDeals } from './scraper/products';
@@ -127,300 +125,151 @@ export function createApp() {
     });
   });
 
-  // Fetch available circulars from Kroger API
-  app.get('/admin/kingsoopers/circulars', async (c) => {
-    const storeId = c.req.query('storeId');
-    const facilityId = c.req.query('facilityId');
+  // Fetch available circulars for a store instance
+  app.get('/admin/scrape/circulars', async (c) => {
+    const instanceId = c.req.query('instanceId');
+    if (!instanceId) {
+      return c.json({ error: 'instanceId is required' }, 400);
+    }
 
-    if (!storeId || !facilityId) {
-      return c.json({ error: 'storeId and facilityId are required' }, 400);
+    const storeInstance = await getStoreInstance(instanceId);
+    if (!storeInstance) {
+      return c.json({ error: 'Store instance not found' }, 404);
     }
 
     try {
-      const result = await fetchCirculars(storeId, facilityId);
-      return c.json(result);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return c.json({ error: message }, 500);
-    }
-  });
-
-  // Preview deals from King Soopers API (no persist)
-  app.get('/admin/kingsoopers/deals', async (c) => {
-    const circularId = c.req.query('circularId');
-    const storeId = c.req.query('storeId');
-    const facilityId = c.req.query('facilityId');
-
-    if (!storeId || !facilityId || !circularId) {
-      return c.json({ error: 'storeId, facilityId, and circularId are required' }, 400);
-    }
-
-    const deals = await fetchWeeklyDeals(circularId, storeId, facilityId);
-    return c.json({ deals, count: deals.length });
-  });
-
-  // Manual scrape: fetch and persist deals to DynamoDB
-  app.post('/admin/kingsoopers/scrape', async (c) => {
-    const circularId = c.req.query('circularId');
-    const storeId = c.req.query('storeId');
-    const facilityId = c.req.query('facilityId');
-    const storeName = c.req.query('storeName');
-
-    if (!storeId || !facilityId || !circularId) {
-      return c.json({ error: 'storeId, facilityId, and circularId are required' }, 400);
-    }
-
-    const weekId = c.req.query('weekId') ?? getCurrentWeekId();
-
-    // Get or create the store instance
-    const identifiers: StoreIdentifiers = {
-      type: 'kingsoopers',
-      storeId,
-      facilityId,
-    };
-
-    const storeInstance = await getOrCreateStoreInstance(
-      identifiers,
-      storeName || `King Soopers (${storeId})`
-    );
-
-    const result = await fetchAndPersistWeeklyDeals(
-      circularId,
-      storeId,
-      facilityId,
-      storeInstance.instanceId,
-      weekId
-    );
-
-    return c.json({
-      success: true,
-      weekId,
-      storeInstanceId: storeInstance.instanceId,
-      dealCount: result.deals.length,
-      persisted: result.persisted,
-    });
-  });
-
-  // Auto-scrape: fetch circularId + scrape with deduplication
-  // Use ?force=true to clear existing data and re-scrape
-  app.post('/admin/kingsoopers/scrape/auto', async (c) => {
-    const storeId = c.req.query('storeId');
-    const facilityId = c.req.query('facilityId');
-    const storeName = c.req.query('storeName');
-    const force = c.req.query('force') === 'true';
-
-    if (!storeId || !facilityId) {
-      return c.json({ error: 'storeId and facilityId are required' }, 400);
-    }
-
-    // 1. Fetch circulars and extract weeklyAd metadata
-    const { circulars } = await fetchCirculars(storeId, facilityId);
-    const weeklyAdMeta = extractWeeklyAdMetadata(circulars);
-
-    if (!weeklyAdMeta) {
-      return c.json({ error: 'No weeklyAd circular found' }, 404);
-    }
-
-    const weekId = getCurrentWeekId();
-
-    // 2. Get or create store instance
-    const identifiers: StoreIdentifiers = {
-      type: 'kingsoopers',
-      storeId,
-      facilityId,
-    };
-
-    const storeInstance = await getOrCreateStoreInstance(
-      identifiers,
-      storeName || `King Soopers (${storeId})`
-    );
-
-    // 3. Check for existing circular (deduplication) - skip if force=true
-    const existingCircular = await getCircular(storeInstance.instanceId, weekId);
-
-    if (!force && existingCircular && existingCircular.circularId === weeklyAdMeta.circularId) {
-      return c.json({
-        success: true,
-        alreadyScraped: true,
-        weekId,
-        circularId: weeklyAdMeta.circularId,
-        storeInstanceId: storeInstance.instanceId,
-        existingDealCount: existingCircular.dealCount,
-      });
-    }
-
-    // 4. If force=true, delete existing circular and deals first
-    let deletedCount = 0;
-    if (force && existingCircular) {
-      const deleteResult = await deleteCircularAndDeals(storeInstance.instanceId, weekId);
-      deletedCount = deleteResult.deletedCount;
-    }
-
-    // 5. Scrape and persist deals
-    const result = await fetchAndPersistWeeklyDeals(
-      weeklyAdMeta.circularId,
-      storeId,
-      facilityId,
-      storeInstance.instanceId,
-      weekId,
-      { startDate: weeklyAdMeta.startDate, endDate: weeklyAdMeta.endDate }
-    );
-
-    return c.json({
-      success: true,
-      alreadyScraped: false,
-      forced: force,
-      ...(force && deletedCount > 0 && { deletedCount }),
-      weekId,
-      circularId: weeklyAdMeta.circularId,
-      storeInstanceId: storeInstance.instanceId,
-      dealCount: result.deals.length,
-      persisted: result.persisted,
-      dates: {
-        startDate: weeklyAdMeta.startDate,
-        endDate: weeklyAdMeta.endDate,
-      },
-    });
-  });
-
-  // ===================
-  // Safeway Admin Endpoints
-  // ===================
-
-  // Fetch available publications (circulars) from Flipp API
-  app.get('/admin/safeway/circulars', async (c) => {
-    const storeId = c.req.query('storeId');
-    const postalCode = c.req.query('postalCode');
-
-    if (!storeId || !postalCode) {
-      return c.json({ error: 'storeId and postalCode are required' }, 400);
-    }
-
-    try {
-      const result = await fetchSafewayPublications(storeId, postalCode);
-      return c.json({
-        weeklyAdCircularId: result.weeklyAdPublicationId?.toString() || null,
-        circulars: result.publications.map((pub) => ({
-          id: pub.id.toString(),
-          name: pub.external_display_name,
-          startDate: pub.valid_from,
-          endDate: pub.valid_to,
-        })),
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return c.json({ error: message }, 500);
-    }
-  });
-
-  // Preview deals from Safeway/Flipp API (no persist)
-  app.get('/admin/safeway/deals', async (c) => {
-    const storeId = c.req.query('storeId');
-    const postalCode = c.req.query('postalCode');
-    const circularId = c.req.query('circularId');
-
-    if (!storeId || !postalCode) {
-      return c.json({ error: 'storeId and postalCode are required' }, 400);
-    }
-
-    try {
-      let publicationId: string;
-
-      if (circularId) {
-        publicationId = circularId;
-      } else {
-        // Auto-detect weekly ad publication
-        const { weeklyAdPublicationId } = await fetchSafewayPublications(storeId, postalCode);
-        if (!weeklyAdPublicationId) {
-          return c.json({ error: 'No Weekly Ad publication found' }, 404);
+      switch (storeInstance.identifiers.type) {
+        case 'kingsoopers': {
+          const result = await fetchCirculars(storeInstance.identifiers);
+          return c.json({
+            weeklyAdCircularId: result.weeklyAdCircularId,
+            circulars: result.circulars.map((circ) => ({
+              id: circ.id,
+              name: circ.eventName,
+              startDate: circ.eventStartDate,
+              endDate: circ.eventEndDate,
+            })),
+          });
         }
-        publicationId = weeklyAdPublicationId.toString();
+        case 'safeway': {
+          const result = await fetchSafewayPublications(storeInstance.identifiers);
+          return c.json({
+            weeklyAdCircularId: result.weeklyAdPublicationId?.toString() || null,
+            circulars: result.publications.map((pub) => ({
+              id: pub.id.toString(),
+              name: pub.external_display_name,
+              startDate: pub.valid_from,
+              endDate: pub.valid_to,
+            })),
+          });
+        }
+        case 'sprouts':
+          return c.json({ error: 'Sprouts scraping not yet implemented' }, 501);
+        default: {
+          const _exhaustive: never = storeInstance.identifiers;
+          return c.json({ error: 'Unknown store type' }, 400);
+        }
       }
-
-      const deals = await fetchSafewayWeeklyDeals(publicationId);
-      return c.json({ deals, count: deals.length, circularId: publicationId });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       return c.json({ error: message }, 500);
     }
   });
 
-  // Manual scrape: fetch and persist deals to DynamoDB
-  app.post('/admin/safeway/scrape', async (c) => {
-    const storeId = c.req.query('storeId');
-    const postalCode = c.req.query('postalCode');
+  // Preview deals for a store instance (no persist)
+  app.get('/admin/scrape/deals', async (c) => {
+    const instanceId = c.req.query('instanceId');
     const circularId = c.req.query('circularId');
-    const storeName = c.req.query('storeName');
 
-    if (!storeId || !postalCode || !circularId) {
-      return c.json({ error: 'storeId, postalCode, and circularId are required' }, 400);
+    if (!instanceId) {
+      return c.json({ error: 'instanceId is required' }, 400);
     }
 
-    const weekId = c.req.query('weekId') ?? getCurrentWeekId();
+    const storeInstance = await getStoreInstance(instanceId);
+    if (!storeInstance) {
+      return c.json({ error: 'Store instance not found' }, 404);
+    }
 
-    // Get or create the store instance
-    const identifiers: StoreIdentifiers = {
-      type: 'safeway',
-      storeId,
-      postalCode,
-    };
-
-    const storeInstance = await getOrCreateStoreInstance(
-      identifiers,
-      storeName || `Safeway (${storeId})`
-    );
-
-    const result = await fetchAndPersistSafewayWeeklyDeals(
-      circularId,
-      storeInstance.instanceId,
-      weekId
-    );
-
-    return c.json({
-      success: true,
-      weekId,
-      storeInstanceId: storeInstance.instanceId,
-      circularId,
-      dealCount: result.deals.length,
-      persisted: result.persisted,
-    });
+    try {
+      switch (storeInstance.identifiers.type) {
+        case 'kingsoopers': {
+          if (!circularId) {
+            return c.json({ error: 'circularId is required for King Soopers' }, 400);
+          }
+          const deals = await fetchWeeklyDeals(circularId, storeInstance.identifiers);
+          return c.json({ deals, count: deals.length });
+        }
+        case 'safeway': {
+          let publicationId: string;
+          if (circularId) {
+            publicationId = circularId;
+          } else {
+            const { weeklyAdPublicationId } = await fetchSafewayPublications(storeInstance.identifiers);
+            if (!weeklyAdPublicationId) {
+              return c.json({ error: 'No Weekly Ad publication found' }, 404);
+            }
+            publicationId = weeklyAdPublicationId.toString();
+          }
+          const deals = await fetchSafewayWeeklyDeals(publicationId);
+          return c.json({ deals, count: deals.length, circularId: publicationId });
+        }
+        case 'sprouts':
+          return c.json({ error: 'Sprouts scraping not yet implemented' }, 501);
+        default: {
+          const _exhaustive: never = storeInstance.identifiers;
+          return c.json({ error: 'Unknown store type' }, 400);
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return c.json({ error: message }, 500);
+    }
   });
+
 
   // Auto-scrape: fetch circularId + scrape with deduplication
   // Use ?force=true to clear existing data and re-scrape
-  app.post('/admin/safeway/scrape/auto', async (c) => {
-    const storeId = c.req.query('storeId');
-    const postalCode = c.req.query('postalCode');
-    const storeName = c.req.query('storeName');
+  app.post('/admin/scrape/auto', async (c) => {
+    const instanceId = c.req.query('instanceId');
     const force = c.req.query('force') === 'true';
 
-    if (!storeId || !postalCode) {
-      return c.json({ error: 'storeId and postalCode are required' }, 400);
+    if (!instanceId) {
+      return c.json({ error: 'instanceId is required' }, 400);
     }
 
-    // 1. Fetch publications and extract weeklyAd metadata
-    const { publications } = await fetchSafewayPublications(storeId, postalCode);
-    const weeklyAdMeta = extractSafewayWeeklyAdMetadata(publications);
-
-    if (!weeklyAdMeta) {
-      return c.json({ error: 'No Weekly Ad publication found' }, 404);
+    const storeInstance = await getStoreInstance(instanceId);
+    if (!storeInstance) {
+      return c.json({ error: 'Store instance not found' }, 404);
     }
 
     const weekId = getCurrentWeekId();
 
-    // 2. Get or create store instance
-    const identifiers: StoreIdentifiers = {
-      type: 'safeway',
-      storeId,
-      postalCode,
-    };
+    // Fetch circulars and extract weekly ad metadata (chain-specific)
+    let weeklyAdMeta;
+    switch (storeInstance.identifiers.type) {
+      case 'kingsoopers': {
+        const { circulars } = await fetchCirculars(storeInstance.identifiers);
+        weeklyAdMeta = extractWeeklyAdMetadata(circulars);
+        break;
+      }
+      case 'safeway': {
+        const { publications } = await fetchSafewayPublications(storeInstance.identifiers);
+        weeklyAdMeta = extractSafewayWeeklyAdMetadata(publications);
+        break;
+      }
+      case 'sprouts':
+        return c.json({ error: 'Sprouts scraping not yet implemented' }, 501);
+      default: {
+        const _exhaustive: never = storeInstance.identifiers;
+        return c.json({ error: 'Unknown store type' }, 400);
+      }
+    }
 
-    const storeInstance = await getOrCreateStoreInstance(
-      identifiers,
-      storeName || `Safeway (${storeId})`
-    );
+    if (!weeklyAdMeta) {
+      return c.json({ error: 'No weekly ad circular found' }, 404);
+    }
 
-    // 3. Check for existing circular (deduplication) - skip if force=true
+    // Check for existing circular (deduplication)
     const existingCircular = await getCircular(storeInstance.instanceId, weekId);
 
     if (!force && existingCircular && existingCircular.circularId === weeklyAdMeta.circularId) {
@@ -434,20 +283,29 @@ export function createApp() {
       });
     }
 
-    // 4. If force=true, delete existing circular and deals first
+    // If force=true, delete existing circular and deals first
     let deletedCount = 0;
     if (force && existingCircular) {
       const deleteResult = await deleteCircularAndDeals(storeInstance.instanceId, weekId);
       deletedCount = deleteResult.deletedCount;
     }
 
-    // 5. Scrape and persist deals
-    const result = await fetchAndPersistSafewayWeeklyDeals(
-      weeklyAdMeta.circularId,
-      storeInstance.instanceId,
-      weekId,
-      { startDate: weeklyAdMeta.startDate, endDate: weeklyAdMeta.endDate }
-    );
+    // Scrape and persist deals (chain-specific)
+    let result;
+    switch (storeInstance.identifiers.type) {
+      case 'kingsoopers':
+        result = await fetchAndPersistWeeklyDeals(
+          weeklyAdMeta.circularId, storeInstance.identifiers, storeInstance.instanceId,
+          weekId, { startDate: weeklyAdMeta.startDate, endDate: weeklyAdMeta.endDate }
+        );
+        break;
+      case 'safeway':
+        result = await fetchAndPersistSafewayWeeklyDeals(
+          weeklyAdMeta.circularId, storeInstance.instanceId,
+          weekId, { startDate: weeklyAdMeta.startDate, endDate: weeklyAdMeta.endDate }
+        );
+        break;
+    }
 
     return c.json({
       success: true,

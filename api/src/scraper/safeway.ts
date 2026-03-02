@@ -1,5 +1,5 @@
 import { writeDeals, writeCircular } from '../db/client';
-import { getCurrentWeekId } from '../types/database';
+import { getCurrentWeekId, SafewayIdentifiers } from '../types/database';
 import { findCanonicalProductId } from './products';
 import { StandardDeal, WeeklyAdMetadata } from './kingsoopers';
 
@@ -37,9 +37,9 @@ function getFlippAccessToken(): string {
  * Fetch available publications (circulars/flyers) from Flipp API
  */
 export async function fetchPublications(
-  storeId: string,
-  postalCode: string
+  identifiers: SafewayIdentifiers
 ): Promise<{ weeklyAdPublicationId: number | null; publications: FlippPublication[] }> {
+  const { storeId, postalCode } = identifiers;
   const accessToken = getFlippAccessToken();
 
   const url = new URL('https://api.flipp.com/flyerkit/v4.0/publications/safeway');

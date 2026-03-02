@@ -1,5 +1,5 @@
 import { writeDeals, writeCircular } from '../db/client';
-import { getCurrentWeekId, PriceVariant } from '../types/database';
+import { getCurrentWeekId, KingSoopersIdentifiers, PriceVariant } from '../types/database';
 import { findCanonicalProductId } from './products';
 
 export type { PriceVariant } from '../types/database';
@@ -103,9 +103,9 @@ export function extractWeeklyAdMetadata(circulars: Circular[]): WeeklyAdMetadata
 }
 
 export async function fetchCirculars(
-  storeId: string,
-  facilityId: string
+  identifiers: KingSoopersIdentifiers
 ): Promise<{ weeklyAdCircularId: string | null; circulars: Circular[] }> {
+  const { storeId, facilityId } = identifiers;
   const headers = buildKrogerHeaders(storeId, facilityId);
 
   const response = await fetch(
@@ -402,9 +402,9 @@ interface KingSoopersApiResponse {
 
 export async function fetchWeeklyDeals(
   circularId: string,
-  storeId: string,
-  facilityId: string
+  identifiers: KingSoopersIdentifiers
 ): Promise<StandardDeal[]> {
+  const { storeId, facilityId } = identifiers;
   const headers = buildKrogerHeaders(storeId, facilityId);
 
   const url = new URL(DEALS_URL);
@@ -430,24 +430,14 @@ export async function fetchWeeklyDeals(
   return deals;
 }
 
-/**
- * Fetch weekly deals and persist to DynamoDB
- * @param circularId - The circular/flyer ID
- * @param storeId - The King Soopers store ID (API parameter)
- * @param facilityId - The King Soopers facility ID (API parameter)
- * @param storeInstanceId - The store instance ID for DynamoDB (e.g., "kingsoopers:a1b2c3d4")
- * @param weekId - The week ID (ISO format)
- * @param circularDates - Optional start/end dates from Kroger API
- */
 export async function fetchAndPersistWeeklyDeals(
   circularId: string,
-  storeId: string,
-  facilityId: string,
+  identifiers: KingSoopersIdentifiers,
   storeInstanceId: string,
   weekId: string = getCurrentWeekId(),
   circularDates?: { startDate: string; endDate: string }
 ): Promise<{ deals: StandardDeal[]; persisted: boolean }> {
-  const deals = await fetchWeeklyDeals(circularId, storeId, facilityId);
+  const deals = await fetchWeeklyDeals(circularId, identifiers);
 
   if (deals.length === 0) {
     return { deals, persisted: false };

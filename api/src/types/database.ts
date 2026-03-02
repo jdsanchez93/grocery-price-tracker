@@ -28,6 +28,10 @@ export type StoreIdentifiers =
 
 export type StoreType = StoreIdentifiers['type'];
 
+export type KingSoopersIdentifiers = Extract<StoreIdentifiers, { type: 'kingsoopers' }>;
+export type SafewayIdentifiers = Extract<StoreIdentifiers, { type: 'safeway' }>;
+export type SproutsIdentifiers = Extract<StoreIdentifiers, { type: 'sprouts' }>;
+
 export const STORE_TYPE_METADATA: Record<StoreType, { name: string; chain: string }> = {
   kingsoopers: { name: 'King Soopers', chain: 'kroger' },
   safeway: { name: 'Safeway', chain: 'albertsons' },
