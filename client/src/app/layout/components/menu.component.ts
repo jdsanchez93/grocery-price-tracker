@@ -35,7 +35,8 @@ export class MenuComponent {
         label: 'Browse',
         items: [
           { label: 'Deals', icon: 'pi pi-fw pi-tag', routerLink: ['/deals'] },
-          { label: 'My Stores', icon: 'pi pi-fw pi-shop', routerLink: ['/stores'] }
+          { label: 'My Stores', icon: 'pi pi-fw pi-shop', routerLink: ['/stores'] },
+          { label: 'Admin', icon: 'pi pi-fw pi-cog', routerLink: ['/admin'] }
         ]
       }
     ];

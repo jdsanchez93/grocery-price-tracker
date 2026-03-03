@@ -1,0 +1,27 @@
+<p-toast />
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+    @for (store of stores(); track store.instanceId) {
+    <div>
+        <h3>{{ getStoreTypeName(store.storeType) }}</h3>
+        <p-card>
+            <ng-template #header>
+                <div style="padding: 0.75rem 1rem 0">
+                    <p-tag [value]="store.chain" severity="info" />
+                </div>
+            </ng-template>
+            <ng-template #content>
+                <p>{{store.name}}</p>
+                <p>{{store.instanceId}}</p>
+            </ng-template>
+            <ng-template #footer>
+                @if (alreadyScraped().has(store.instanceId)) {
+                <p-button label="Force Re-scrape" (click)="scrapeStore(store.instanceId, true)" [loading]="loading().has(store.instanceId)"></p-button>
+                }
+                @else {
+                <p-button label="Scrape" (click)="scrapeStore(store.instanceId)" [loading]="loading().has(store.instanceId)"></p-button>
+                }
+            </ng-template>
+        </p-card>
+    </div>
+    }
+</div>

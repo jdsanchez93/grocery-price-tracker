@@ -20,6 +20,11 @@ export const routes: Routes = [
         path: 'stores',
         loadComponent: () =>
           import('./pages/stores/stores.component').then(m => m.StoresComponent)
+      },
+      {
+        path: 'admin',
+        loadComponent: () =>
+          import('./pages/scrape-management/scrape-management').then(m => m.ScrapeManagement)
       }
     ]
   }
