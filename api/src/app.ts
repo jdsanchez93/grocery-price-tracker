@@ -11,7 +11,7 @@ import {
   fetchWeeklyDeals as fetchSafewayWeeklyDeals,
   fetchAndPersistWeeklyDeals as fetchAndPersistSafewayWeeklyDeals,
 } from './scraper/safeway';
-import { authMiddleware, getAuthUser, isAuthenticated } from './middleware/auth';
+import { authMiddleware, getAuthUser, isAuthenticated, hasScope } from './middleware/auth';
 import {
   getDealsForUserStores,
   getUserStores,
@@ -331,6 +331,11 @@ export function createApp() {
   // Apply auth middleware to all /me/* routes
   app.use('/me/*', authMiddleware({ required: true, scopes: ['user'] }));
 
+  // Get current week ID
+  app.get('/me/week', (c) => {
+    return c.json({ weekId: getCurrentWeekId() });
+  });
+
   // Get user's selected stores (now returns store instances)
   app.get('/me/stores', async (c) => {
     const user = getAuthUser(c);
@@ -404,7 +409,12 @@ export function createApp() {
   // Get deals from user's selected stores
   app.get('/me/deals', async (c) => {
     const user = getAuthUser(c);
-    const weekId = c.req.query('week') ?? getCurrentWeekId();
+    const currentWeekId = getCurrentWeekId();
+    const weekId = c.req.query('week') ?? currentWeekId;
+
+    if (weekId !== currentWeekId && !hasScope(c, 'browse')) {
+      return c.json({ error: 'Browse scope required for historical week access' }, 403);
+    }
 
     const deals = await getDealsForUserStores(user.userId, weekId);
 
@@ -424,7 +434,13 @@ export function createApp() {
       return c.json({ error: 'Query parameter "q" is required' }, 400);
     }
 
-    const weekId = c.req.query('week') ?? getCurrentWeekId();
+    const currentWeekId = getCurrentWeekId();
+    const weekId = c.req.query('week') ?? currentWeekId;
+
+    if (weekId !== currentWeekId && !hasScope(c, 'browse')) {
+      return c.json({ error: 'Browse scope required for historical week access' }, 403);
+    }
+
     const allDeals = await getDealsForUserStores(user.userId, weekId);
 
     // Client-side filtering
@@ -438,8 +454,12 @@ export function createApp() {
     });
   });
 
-  // Get price history for a product
+  // Get price history for a product (requires browse scope)
   app.get('/me/products/:id/history', async (c) => {
+    if (!hasScope(c, 'browse')) {
+      return c.json({ error: 'Browse scope required for price history access' }, 403);
+    }
+
     const user = getAuthUser(c);
     const canonicalProductId = c.req.param('id');
 
