@@ -1,7 +1,8 @@
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
 import { providePrimeNG } from 'primeng/config';
-import { provideAuth0 } from '@auth0/auth0-angular';
+import { provideAuth0,authHttpInterceptorFn } from '@auth0/auth0-angular';
 import Aura from '@primeuix/themes/aura';
 
 import { routes } from './app.routes';
@@ -10,6 +11,7 @@ import { environment } from '@/environments/environment';
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
+    provideHttpClient(withInterceptors([authHttpInterceptorFn])),
     provideRouter(routes),
     providePrimeNG({ theme: { preset: Aura, options: { darkModeSelector: '.app-dark' } } }),
     provideAuth0({
