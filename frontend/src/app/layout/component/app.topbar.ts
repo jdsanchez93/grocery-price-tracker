@@ -47,12 +47,7 @@ import { AuthButtons } from "@/app/core/auth/auth-buttons/auth-buttons";
             </button>
 
             <div class="layout-topbar-menu hidden lg:block">
-                <div class="layout-topbar-menu-content">
-                    <button type="button" class="layout-topbar-action">
-                        <i class="pi pi-user"></i>
-                        <span>Profile</span>
-                    </button>
-                </div>
+
                 <div class="layout-topbar-menu-content">
                     <app-auth-buttons />
                 </div>
