@@ -5,11 +5,12 @@ import { CommonModule } from '@angular/common';
 import { StyleClassModule } from 'primeng/styleclass';
 import { AppConfigurator } from './app.configurator';
 import { LayoutService } from '@/app/layout/service/layout.service';
+import { AuthButtons } from "@/app/core/auth/auth-buttons/auth-buttons";
 
 @Component({
     selector: 'app-topbar',
     standalone: true,
-    imports: [RouterModule, CommonModule, StyleClassModule, AppConfigurator],
+    imports: [RouterModule, CommonModule, StyleClassModule, AppConfigurator, AuthButtons],
     template: ` <div class="layout-topbar">
         <div class="layout-topbar-logo-container">
             <button class="layout-menu-button layout-topbar-action" (click)="layoutService.onMenuToggle()">
@@ -51,6 +52,9 @@ import { LayoutService } from '@/app/layout/service/layout.service';
                         <i class="pi pi-user"></i>
                         <span>Profile</span>
                     </button>
+                </div>
+                <div class="layout-topbar-menu-content">
+                    <app-auth-buttons />
                 </div>
             </div>
         </div>
