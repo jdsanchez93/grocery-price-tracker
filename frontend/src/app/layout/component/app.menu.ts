@@ -30,9 +30,9 @@ export class AppMenu {
             {
                 label: 'Browse',
                 items: [
-                    { label: 'Current Deals', icon: 'pi pi-fw pi-tag', routerLink: ['/current-deals'] },
-                    { label: 'Deal History', icon: 'pi pi-fw pi-history', routerLink: ['/history'] },
-                    { label: 'Deal Search', icon: 'pi pi-fw pi-search', routerLink: ['/search'] },
+                    { label: 'Current Deals', icon: 'pi pi-fw pi-tag', routerLink: ['/deals/current-deals'] },
+                    { label: 'Deal History', icon: 'pi pi-fw pi-history', routerLink: ['/deals/history'] },
+                    { label: 'Deal Search', icon: 'pi pi-fw pi-search', routerLink: ['/deals/search'] },
                 ]
             },
             {
