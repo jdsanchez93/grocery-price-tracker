@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, type MockInstance, beforeEach, afterEach } from 'vitest';
-import { standardizeKingSoopersAd, StandardDeal, fetchWeeklyDeals, _resetTokenCache } from '../../src/scraper/kingsoopers';
+import { standardizeKingSoopersAd, StandardDeal, fetchWeeklyDeals, _resetTokenCache, _getKrogerPriceVariants, _fetchProductPrices, _fetchProductPricesByTerm } from '../../src/scraper/kingsoopers';
 
 describe('standardizeKingSoopersAd', () => {
   describe('2FOR deals', () => {
@@ -323,9 +323,9 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
       if (isProductUrl(url)) {
         return mockResponse({
           data: [
-            { description: 'Tillamook Vanilla Bean Ice Cream', items: [{ price: { regular: 7.49 } }] },
-            { description: 'Tillamook Marionberry Pie', items: [{ price: { regular: 7.49 } }] },
-            { description: 'Tillamook Extra Creamy Vanilla', items: [{ price: { regular: 6.99 } }] },
+            { upc: '0007283008114', description: 'Tillamook Vanilla Bean Ice Cream', items: [{ price: { regular: 7.49 } }] },
+            { upc: '0007283008115', description: 'Tillamook Marionberry Pie', items: [{ price: { regular: 7.49 } }] },
+            { upc: '0007283008116', description: 'Tillamook Extra Creamy Vanilla', items: [{ price: { regular: 6.99 } }] },
           ],
         });
       }
@@ -333,7 +333,7 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
       return mockResponse({}, false);
     });
 
-    const deals = await fetchWeeklyDeals('circ-1', 'store-1', 'fac-1');
+    const deals = await fetchWeeklyDeals('circ-1', { type: 'kingsoopers', storeId: 'store-1', facilityId: 'fac-1' });
 
     expect(deals).toHaveLength(1);
     // Uses min price (6.99) for priceNumber
@@ -383,7 +383,7 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
       if (isProductUrl(url)) {
         return mockResponse({
           data: [
-            { description: 'Chobani Greek Yogurt', items: [{ price: { regular: 5.99 } }] },
+            { upc: '0001111041700', description: 'Chobani Greek Yogurt', items: [{ price: { regular: 5.99 } }] },
           ],
         });
       }
@@ -391,7 +391,7 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
       return mockResponse({}, false);
     });
 
-    const deals = await fetchWeeklyDeals('circ-1', 'store-1', 'fac-1');
+    const deals = await fetchWeeklyDeals('circ-1', { type: 'kingsoopers', storeId: 'store-1', facilityId: 'fac-1' });
 
     expect(deals).toHaveLength(1);
     expect(deals[0].priceNumber).toBeCloseTo(2.995); // 5.99 / 2
@@ -437,11 +437,13 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
         return mockResponse({
           data: [
             {
+              upc: '0027061550000',
               description: 'Heritage Farm Chicken Breast',
               items: [{ price: { regular: 5.49 }, soldBy: 'WEIGHT' }],
               itemInformation: { averageWeightPerUnit: '3.24 [lb_av]' },
             },
             {
+              upc: '0027061550001',
               description: 'Heritage Farm Chicken Thighs',
               items: [{ price: { regular: 5.49 }, soldBy: 'WEIGHT' }],
               itemInformation: { averageWeightPerUnit: '2.50 [lb_av]' },
@@ -453,7 +455,7 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
       return mockResponse({}, false);
     });
 
-    const deals = await fetchWeeklyDeals('circ-1', 'store-1', 'fac-1');
+    const deals = await fetchWeeklyDeals('circ-1', { type: 'kingsoopers', storeId: 'store-1', facilityId: 'fac-1' });
 
     expect(deals).toHaveLength(1);
     // Min effective price: 5.49 * 2.50 = 13.73, BOGO: 13.73 / 2 = 6.865
@@ -493,7 +495,7 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
       return mockResponse({}, false);
     });
 
-    const deals = await fetchWeeklyDeals('circ-1', 'store-1', 'fac-1');
+    const deals = await fetchWeeklyDeals('circ-1', { type: 'kingsoopers', storeId: 'store-1', facilityId: 'fac-1' });
 
     expect(deals).toHaveLength(1);
     expect(deals[0].priceNumber).toBeNull();
@@ -541,7 +543,7 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
       return mockResponse({}, false);
     });
 
-    const deals = await fetchWeeklyDeals('circ-1', 'store-1', 'fac-1');
+    const deals = await fetchWeeklyDeals('circ-1', { type: 'kingsoopers', storeId: 'store-1', facilityId: 'fac-1' });
 
     expect(deals).toHaveLength(1);
     expect(deals[0].priceNumber).toBeNull();
@@ -570,13 +572,137 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
       throw new Error('Unexpected fetch call: ' + url);
     });
 
-    const deals = await fetchWeeklyDeals('circ-1', 'store-1', 'fac-1');
+    const deals = await fetchWeeklyDeals('circ-1', { type: 'kingsoopers', storeId: 'store-1', facilityId: 'fac-1' });
 
     expect(deals).toHaveLength(1);
     expect(deals[0].priceNumber).toBeNull();
     expect(deals[0].priceDisplay).toBe('See store for details');
     // Only the initial deals fetch should have been called
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should fallback to term search when UPC lookup returns partial results', async () => {
+    fetchSpy.mockImplementation(async (input) => {
+      const url = input.toString();
+
+      if (url.includes(DEALS_URL) && !url.includes('/deal-fallback')) {
+        return mockResponse({
+          data: {
+            shoppableWeeklyDeals: {
+              ads: [{
+                id: 'deal-fallback',
+                mainlineCopy: 'Tostitos',
+                underlineCopy: '5-8 oz',
+                pricingTemplate: '_KRGR_BOGO',
+                buyQuantity: 1,
+                getQuantity: 1,
+              }],
+            },
+          },
+        });
+      }
+
+      if (url.includes(DEALS_URL + '/deal-fallback')) {
+        return mockResponse({
+          data: {
+            shoppableWeeklyDealDetails: {
+              mainlineCopy: 'Tostitos',
+              underlineCopy: '5-8 oz',
+              upcs: [{ upc: 'UPC-A' }, { upc: 'UPC-B' }],
+            },
+          },
+        });
+      }
+
+      if (isTokenUrl(url)) return tokenResponse();
+
+      // UPC lookup returns only 1 of 2
+      if (url.includes('api.kroger.com/v1/products') && url.includes('filter.productId=')) {
+        return mockResponse({
+          data: [
+            { upc: 'UPC-A', description: 'Tostitos Scoops', items: [{ price: { regular: 4.99 } }] },
+          ],
+          meta: { pagination: { start: 0, limit: 50, total: 1 } },
+        });
+      }
+
+      // Term search finds the missing UPC
+      if (url.includes('api.kroger.com/v1/products') && url.includes('filter.term=')) {
+        return mockResponse({
+          data: [
+            { upc: 'UPC-A', description: 'Tostitos Scoops', items: [{ price: { regular: 4.99 } }] },
+            { upc: 'UPC-B', description: 'Tostitos Rounds', items: [{ price: { regular: 3.99 } }] },
+          ],
+          meta: { pagination: { start: 0, limit: 50, total: 2 } },
+        });
+      }
+
+      return mockResponse({}, false);
+    });
+
+    const deals = await fetchWeeklyDeals('circ-1', { type: 'kingsoopers', storeId: 'store-1', facilityId: 'fac-1' });
+
+    expect(deals).toHaveLength(1);
+    expect(deals[0].priceVariants).toEqual([
+      { price: 3.99, example: 'Tostitos Rounds' },
+      { price: 4.99, example: 'Tostitos Scoops' },
+    ]);
+    expect(deals[0].priceNumber).toBeCloseTo(1.995); // 3.99 / 2
+    expect(deals[0].priceDisplay).toBe('Buy 1 Get 1 Free ($3.99 - $4.99 each)');
+  });
+
+  it('should retain null price when both UPC and term lookups return no prices', async () => {
+    fetchSpy.mockImplementation(async (input) => {
+      const url = input.toString();
+
+      if (url.includes(DEALS_URL) && !url.includes('/deal-empty')) {
+        return mockResponse({
+          data: {
+            shoppableWeeklyDeals: {
+              ads: [{
+                id: 'deal-empty',
+                mainlineCopy: 'Rare Item',
+                underlineCopy: 'Limited edition',
+                pricingTemplate: '_KRGR_BOGO',
+                buyQuantity: 1,
+                getQuantity: 1,
+              }],
+            },
+          },
+        });
+      }
+
+      if (url.includes(DEALS_URL + '/deal-empty')) {
+        return mockResponse({
+          data: {
+            shoppableWeeklyDealDetails: {
+              mainlineCopy: 'Rare Item',
+              underlineCopy: 'Limited edition',
+              upcs: [{ upc: 'UPC-MISSING' }],
+            },
+          },
+        });
+      }
+
+      if (isTokenUrl(url)) return tokenResponse();
+
+      // Both UPC and term lookups return empty
+      if (url.includes('api.kroger.com/v1/products')) {
+        return mockResponse({
+          data: [],
+          meta: { pagination: { start: 0, limit: 50, total: 0 } },
+        });
+      }
+
+      return mockResponse({}, false);
+    });
+
+    const deals = await fetchWeeklyDeals('circ-1', { type: 'kingsoopers', storeId: 'store-1', facilityId: 'fac-1' });
+
+    expect(deals).toHaveLength(1);
+    expect(deals[0].priceNumber).toBeNull();
+    expect(deals[0].priceDisplay).toBe('Buy 1 Get 1 Free');
+    expect(deals[0].priceVariants).toBeUndefined();
   });
 
   it('should not re-fetch for BOGO deal that already has retailPrice', async () => {
@@ -604,12 +730,304 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
       throw new Error('Unexpected fetch call: ' + url);
     });
 
-    const deals = await fetchWeeklyDeals('circ-1', 'store-1', 'fac-1');
+    const deals = await fetchWeeklyDeals('circ-1', { type: 'kingsoopers', storeId: 'store-1', facilityId: 'fac-1' });
 
     expect(deals).toHaveLength(1);
     expect(deals[0].priceNumber).toBeCloseTo(2.995); // 5.99 / 2
     expect(deals[0].priceDisplay).toBe('Buy 1 Get 1 Free ($5.99 each)');
     // Only the initial deals fetch should have been called
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('_getKrogerPriceVariants', () => {
+  let fetchSpy: MockInstance<typeof global.fetch>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(global, 'fetch');
+    vi.stubEnv('KROGER_CLIENT_ID', 'test-client-id');
+    vi.stubEnv('KROGER_CLIENT_SECRET', 'test-client-secret');
+    _resetTokenCache();
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
+  function mockResponse(body: unknown, ok = true): Response {
+    return {
+      ok,
+      status: ok ? 200 : 500,
+      json: () => Promise.resolve(body),
+      text: () => Promise.resolve(JSON.stringify(body)),
+    } as Response;
+  }
+
+  it('should paginate when total > start + limit', async () => {
+    fetchSpy.mockImplementation(async (input) => {
+      const url = input.toString();
+
+      if (url.includes('oauth2/token')) {
+        return mockResponse({ access_token: 'test-token', expires_in: 1800 });
+      }
+
+      if (url.includes('api.kroger.com/v1/products')) {
+        const params = new URL(url).searchParams;
+        const start = parseInt(params.get('filter.start') || '0');
+
+        if (start === 0) {
+          return mockResponse({
+            data: [
+              { upc: '001', description: 'Product A', items: [{ price: { regular: 1.99 } }] },
+              { upc: '002', description: 'Product B', items: [{ price: { regular: 2.99 } }] },
+            ],
+            meta: { pagination: { start: 0, limit: 2, total: 3 } },
+          });
+        } else {
+          return mockResponse({
+            data: [
+              { upc: '003', description: 'Product C', items: [{ price: { regular: 3.99 } }] },
+            ],
+            meta: { pagination: { start: 2, limit: 2, total: 3 } },
+          });
+        }
+      }
+
+      return mockResponse({}, false);
+    });
+
+    const result = await _getKrogerPriceVariants({
+      'filter.term': 'test',
+      'filter.locationId': 'loc-1',
+      'filter.limit': '2',
+    });
+
+    expect(Object.keys(result)).toHaveLength(3);
+    expect(result['001']).toEqual({ price: 1.99, example: 'Product A' });
+    expect(result['002']).toEqual({ price: 2.99, example: 'Product B' });
+    expect(result['003']).toEqual({ price: 3.99, example: 'Product C' });
+  });
+
+  it('should not paginate when total <= start + limit', async () => {
+    let productCallCount = 0;
+
+    fetchSpy.mockImplementation(async (input) => {
+      const url = input.toString();
+
+      if (url.includes('oauth2/token')) {
+        return mockResponse({ access_token: 'test-token', expires_in: 1800 });
+      }
+
+      if (url.includes('api.kroger.com/v1/products')) {
+        productCallCount++;
+        return mockResponse({
+          data: [
+            { upc: '001', description: 'Product A', items: [{ price: { regular: 1.99 } }] },
+          ],
+          meta: { pagination: { start: 0, limit: 50, total: 1 } },
+        });
+      }
+
+      return mockResponse({}, false);
+    });
+
+    const result = await _getKrogerPriceVariants({
+      'filter.term': 'test',
+      'filter.locationId': 'loc-1',
+    });
+
+    expect(Object.keys(result)).toHaveLength(1);
+    expect(productCallCount).toBe(1);
+  });
+});
+
+describe('_fetchProductPrices', () => {
+  let fetchSpy: MockInstance<typeof global.fetch>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(global, 'fetch');
+    vi.stubEnv('KROGER_CLIENT_ID', 'test-client-id');
+    vi.stubEnv('KROGER_CLIENT_SECRET', 'test-client-secret');
+    _resetTokenCache();
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
+  function mockResponse(body: unknown, ok = true): Response {
+    return {
+      ok,
+      status: ok ? 200 : 500,
+      json: () => Promise.resolve(body),
+      text: () => Promise.resolve(JSON.stringify(body)),
+    } as Response;
+  }
+
+  it('should split UPCs into batches of 10 and merge results', async () => {
+    const batchProductIds: string[][] = [];
+
+    fetchSpy.mockImplementation(async (input) => {
+      const url = input.toString();
+
+      if (url.includes('oauth2/token')) {
+        return mockResponse({ access_token: 'test-token', expires_in: 1800 });
+      }
+
+      if (url.includes('api.kroger.com/v1/products')) {
+        const params = new URL(url).searchParams;
+        const ids = params.get('filter.productId')?.split(',') || [];
+        batchProductIds.push(ids);
+
+        return mockResponse({
+          data: ids.map((id, i) => ({
+            upc: id,
+            description: `Product ${id}`,
+            items: [{ price: { regular: 1.00 + i * 0.01 } }],
+          })),
+          meta: { pagination: { start: 0, limit: 50, total: ids.length } },
+        });
+      }
+
+      return mockResponse({}, false);
+    });
+
+    // 12 UPCs => 2 batches (10 + 2)
+    const upcs = Array.from({ length: 12 }, (_, i) => `UPC${String(i).padStart(3, '0')}`);
+    const result = await _fetchProductPrices(upcs, 'loc-1');
+
+    expect(batchProductIds).toHaveLength(2);
+    expect(batchProductIds[0]).toHaveLength(10);
+    expect(batchProductIds[1]).toHaveLength(2);
+    expect(Object.keys(result)).toHaveLength(12);
+  });
+});
+
+describe('_fetchProductPricesByTerm', () => {
+  let fetchSpy: MockInstance<typeof global.fetch>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(global, 'fetch');
+    vi.stubEnv('KROGER_CLIENT_ID', 'test-client-id');
+    vi.stubEnv('KROGER_CLIENT_SECRET', 'test-client-secret');
+    _resetTokenCache();
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
+  function mockResponse(body: unknown, ok = true): Response {
+    return {
+      ok,
+      status: ok ? 200 : 500,
+      json: () => Promise.resolve(body),
+      text: () => Promise.resolve(JSON.stringify(body)),
+    } as Response;
+  }
+
+  it('should split on " or " and search multiple terms, filtering to deal UPCs', async () => {
+    const searchedTerms: string[] = [];
+
+    fetchSpy.mockImplementation(async (input) => {
+      const url = input.toString();
+
+      if (url.includes('oauth2/token')) {
+        return mockResponse({ access_token: 'test-token', expires_in: 1800 });
+      }
+
+      if (url.includes('api.kroger.com/v1/products') && url.includes('filter.term=')) {
+        const params = new URL(url).searchParams;
+        const term = params.get('filter.term')!;
+        searchedTerms.push(term);
+
+        if (term.includes('Tostitos')) {
+          return mockResponse({
+            data: [
+              { upc: 'UPC-TOSTITOS', description: 'Tostitos Chips', items: [{ price: { regular: 4.99 } }] },
+              { upc: 'UPC-UNRELATED', description: 'Unrelated Product', items: [{ price: { regular: 9.99 } }] },
+            ],
+            meta: { pagination: { start: 0, limit: 50, total: 2 } },
+          });
+        }
+
+        if (term.includes('Doritos')) {
+          return mockResponse({
+            data: [
+              { upc: 'UPC-DORITOS', description: 'Doritos Nacho', items: [{ price: { regular: 3.99 } }] },
+            ],
+            meta: { pagination: { start: 0, limit: 50, total: 1 } },
+          });
+        }
+
+        return mockResponse({ data: [], meta: { pagination: { start: 0, limit: 50, total: 0 } } });
+      }
+
+      return mockResponse({}, false);
+    });
+
+    const dealDetails = {
+      data: {
+        shoppableWeeklyDealDetails: {
+          mainlineCopy: 'Tostitos',
+          underlineCopy: '5-8 oz or Doritos, 9-10.75 oz',
+          upcs: [{ upc: 'UPC-TOSTITOS' }, { upc: 'UPC-DORITOS' }],
+        },
+      },
+    };
+
+    const result = await _fetchProductPricesByTerm(dealDetails, 'loc-1');
+
+    expect(searchedTerms).toHaveLength(2);
+    expect(Object.keys(result)).toHaveLength(2);
+    expect(result['UPC-TOSTITOS']).toBeDefined();
+    expect(result['UPC-DORITOS']).toBeDefined();
+    expect(result['UPC-UNRELATED']).toBeUndefined();
+  });
+
+  it('should use full mainline as search term when no " or " in underline', async () => {
+    const searchedTerms: string[] = [];
+
+    fetchSpy.mockImplementation(async (input) => {
+      const url = input.toString();
+
+      if (url.includes('oauth2/token')) {
+        return mockResponse({ access_token: 'test-token', expires_in: 1800 });
+      }
+
+      if (url.includes('api.kroger.com/v1/products') && url.includes('filter.term=')) {
+        const params = new URL(url).searchParams;
+        searchedTerms.push(params.get('filter.term')!);
+
+        return mockResponse({
+          data: [
+            { upc: 'UPC-ICE1', description: 'Tillamook Vanilla', items: [{ price: { regular: 7.49 } }] },
+            { upc: 'UPC-ICE2', description: 'Tillamook Chocolate', items: [{ price: { regular: 7.49 } }] },
+          ],
+          meta: { pagination: { start: 0, limit: 50, total: 2 } },
+        });
+      }
+
+      return mockResponse({}, false);
+    });
+
+    const dealDetails = {
+      data: {
+        shoppableWeeklyDealDetails: {
+          mainlineCopy: 'Tillamook Ice Cream',
+          underlineCopy: 'Select Varieties, 6.88-21 oz',
+          upcs: [{ upc: 'UPC-ICE1' }, { upc: 'UPC-ICE2' }],
+        },
+      },
+    };
+
+    const result = await _fetchProductPricesByTerm(dealDetails, 'loc-1');
+
+    expect(searchedTerms).toHaveLength(1);
+    expect(searchedTerms[0]).toBe('Tillamook Ice Cream');
+    expect(Object.keys(result)).toHaveLength(2);
   });
 });

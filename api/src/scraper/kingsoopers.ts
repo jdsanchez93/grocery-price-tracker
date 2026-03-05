@@ -41,7 +41,7 @@ interface LafObject {
   listingKeys: string[];
 }
 
-const DEALS_URL ="https://www.kingsoopers.com/atlas/v1/shoppable-weekly-deals/deals";
+const DEALS_URL = "https://www.kingsoopers.com/atlas/v1/shoppable-weekly-deals/deals";
 const DEAL_DETAIL_URL = "https://www.kingsoopers.com/atlas/v1/shoppable-weekly-deals/deals";
 const PRODUCT_URL = "https://api.kroger.com/v1/products";
 const KROGER_TOKEN_URL = "https://api.kroger.com/v1/connect/oauth2/token";
@@ -211,23 +211,32 @@ export function standardizeKingSoopersAd(ad: KingSoopersAd): StandardDeal {
   };
 }
 
+interface ShoppableWeeklyDealDetailsResponse {
+  data?: {
+    shoppableWeeklyDealDetails?: {
+      mainlineCopy?: string;
+      underlineCopy?: string;
+      upcs?: { upc: string }[];
+    };
+  };
+}
+
 async function fetchDealDetails(
   dealId: string,
   circularId: string,
   headers: Record<string, string>
-): Promise<string[]> {
+): Promise<ShoppableWeeklyDealDetailsResponse> {
   const url = new URL(`${DEAL_DETAIL_URL}/${dealId}`);
   url.searchParams.set("filter.circularId", circularId);
 
   const response = await fetch(url.toString(), { headers });
-  if (!response.ok) return [];
-
-  const json = await response.json();
-  return (json.data?.shoppableWeeklyDealDetails?.upcs || []).map((u: { upc: string }) => u.upc);
+  if (!response.ok) throw new Error(`Unable to fetch deal details: ${response.status} - ${response.statusText}`);
+  return (await response.json()) as ShoppableWeeklyDealDetailsResponse;
 }
 
 interface ProductPriceResponse {
   data?: {
+    upc?: string;
     description?: string;
     items?: {
       price?: {
@@ -240,6 +249,13 @@ interface ProductPriceResponse {
       averageWeightPerUnit?: string;
     };
   }[];
+  meta?: {
+    pagination?: {
+      start: number;
+      limit: number;
+      total: number;
+    }
+  }
 }
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
@@ -277,64 +293,133 @@ async function getKrogerToken(): Promise<string | null> {
   return cachedToken.token;
 }
 
-async function fetchProductPrices(
-  upcs: string[],
-  locationId: string
-): Promise<PriceVariant[]> {
-  if (upcs.length === 0) return [];
+/** @internal Exported for testing */
+export async function _getKrogerPriceVariants(
+  queryParams: Record<string, string>,
+): Promise<Record<string, PriceVariant>> {
+  const url = new URL(PRODUCT_URL);
+  for (const p of Object.keys(queryParams)) {
+    url.searchParams.set(p, queryParams[p]);
+  }
+  if (url.searchParams.get('filter.limit') == null) {
+    url.searchParams.set('filter.limit', '50');
+  }
 
-  const token = await getKrogerToken();
-  if (!token) return [];
-  const variants: PriceVariant[] = [];
-  const seenPrices = new Set<string>(); // "price|perLb|avgWeight" to dedupe
+  const response = await fetch(url.toString(), {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${await getKrogerToken()}`,
+    },
+  });
+  if (!response.ok) {
+    console.error(`[Kroger API] Error response: ${response.status} - ${response.statusText} - ${url.toString()}`);
+    return {};
+  };
 
-  // Batch UPC lookups in groups of 15
-  const PRODUCT_BATCH_SIZE = 15;
-  for (let i = 0; i < upcs.length; i += PRODUCT_BATCH_SIZE) {
-    const batch = upcs.slice(i, i + PRODUCT_BATCH_SIZE);
-    const url = new URL(PRODUCT_URL);
-    url.searchParams.set("filter.productId", batch.join(","));
-    url.searchParams.set("filter.locationId", locationId);
+  const json: ProductPriceResponse = await response.json();
+  const pricesByUpc: Record<string, PriceVariant> = {};
 
-    const response = await fetch(url.toString(), {
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    if (!response.ok) continue;
+  for (const product of json.data || []) {
+    if (!product.upc) continue;
 
-    const json: ProductPriceResponse = await response.json();
-    for (const product of json.data || []) {
-      const name = product.description || 'Unknown';
-      const avgWeightStr = product.itemInformation?.averageWeightPerUnit;
-      const avgWeight = avgWeightStr ? parseFloat(avgWeightStr) : undefined;
+    const name = product.description || 'Unknown';
+    const avgWeightStr = product.itemInformation?.averageWeightPerUnit;
+    const avgWeight = avgWeightStr ? parseFloat(avgWeightStr) : undefined;
 
-      for (const item of product.items || []) {
-        if (item.price?.regular == null) continue;
+    for (const item of product.items || []) {
+      if (item.price?.regular == null) continue;
 
-        const perLb = item.price.regular;
-        const isByWeight = item.soldBy === 'WEIGHT' && avgWeight;
-        const effectivePrice = isByWeight
-          ? Math.round(perLb * avgWeight! * 100) / 100
-          : perLb;
+      const perLb = item.price.regular;
+      const isByWeight = item.soldBy === 'WEIGHT' && avgWeight;
+      const effectivePrice = isByWeight
+        ? Math.round(perLb * avgWeight! * 100) / 100
+        : perLb;
 
-        const key = `${effectivePrice}`;
-        if (seenPrices.has(key)) continue;
-        seenPrices.add(key);
-
-        const variant: PriceVariant = { price: effectivePrice, example: name };
-        if (isByWeight) {
-          variant.perLb = perLb;
-          variant.avgWeight = avgWeight;
-        }
-        variants.push(variant);
+      const variant: PriceVariant = { price: effectivePrice, example: name };
+      if (isByWeight) {
+        variant.perLb = perLb;
+        variant.avgWeight = avgWeight;
       }
+      pricesByUpc[product.upc] = variant;
     }
   }
 
-  variants.sort((a, b) => a.price - b.price);
-  return variants;
+  // use json.meta?.pagination?.start + json.meta?.pagination?.limit to get next page if applicable
+  const start = json.meta?.pagination?.start || 0;
+  const limit = json.meta?.pagination?.limit || 50;
+  if (json.meta?.pagination?.total === undefined) {
+    console.warn(`[Kroger API] Pagination has no total: ${url.toString()}`)
+  }
+  const total = json.meta?.pagination?.total || 0;
+
+  // recursion                                                                                                                                                                                                       
+  if ((start + limit) < total) {
+    const result = await _getKrogerPriceVariants({
+      ...queryParams,
+      'filter.start': (start + limit).toString(),
+    });
+    Object.assign(pricesByUpc, result);
+  }
+
+  return pricesByUpc;
+}
+
+/** @internal Exported for testing */
+export async function _fetchProductPrices(
+  upcs: string[],
+  locationId: string
+): Promise<Record<string, PriceVariant>> {
+  if (upcs.length === 0) return {};
+
+  const pricesByUpc: Record<string, PriceVariant> = {};
+
+  // Batch UPC lookups in groups of 10
+  const PRODUCT_BATCH_SIZE = 10;
+  for (let i = 0; i < upcs.length; i += PRODUCT_BATCH_SIZE) {
+    const batch = upcs.slice(i, i + PRODUCT_BATCH_SIZE);
+
+    const queryParams = {
+      'filter.productId': batch.join(','),
+      'filter.locationId': locationId
+    }
+    const ret = await _getKrogerPriceVariants(queryParams);
+    Object.assign(pricesByUpc, ret);
+  }
+
+  return pricesByUpc;
+}
+
+/** @internal Exported for testing */
+export async function _fetchProductPricesByTerm(
+  dealDetails: ShoppableWeeklyDealDetailsResponse,
+  locationId: string
+): Promise<Record<string, PriceVariant>> {
+  const details = dealDetails.data?.shoppableWeeklyDealDetails;
+  const upcs = (details?.upcs || []).map(u => u.upc);
+  const upcSet = new Set(upcs);
+
+  const mainline = details?.mainlineCopy ?? '';
+  const underline = details?.underlineCopy ?? '';
+  const combinedTerm = [mainline, underline].filter(Boolean).join(', ');
+
+  const searchTerms = underline.includes(' or ')
+    ? combinedTerm.split(' or ').map(s => s.split(',')[0].trim()).filter(Boolean)
+    : [mainline].filter(Boolean);
+
+  const baseParams = {
+    'filter.locationId': locationId,
+    'filter.fulfillment': 'ais',
+  };
+
+  const pricesByUpc: Record<string, PriceVariant> = {};
+  for (const term of searchTerms) {
+    const ret = await _getKrogerPriceVariants({ ...baseParams, 'filter.term': term });
+    Object.assign(pricesByUpc, ret);
+  }
+
+  return Object.fromEntries(
+    Object.entries(pricesByUpc).filter(([upc]) => upcSet.has(upc))
+  );
 }
 
 async function resolveBogoPrices(
@@ -364,16 +449,35 @@ async function resolveBogoPrices(
         return;
       }
       try {
-        const upcs = await fetchDealDetails(ad.id, circularId, headers);
+        const dealDetails = await fetchDealDetails(ad.id, circularId, headers);
+        const upcs = dealDetails.data?.shoppableWeeklyDealDetails?.upcs?.map(u => u.upc) ?? [];
+
         if (upcs.length === 0) {
           console.warn(`[BOGO] Deal "${name}" (${ad.id}): no UPCs returned from detail endpoint`);
           return;
         }
-        const variants = await fetchProductPrices(upcs, headers["x-facility-id"]);
+        let pricesByUpc = await _fetchProductPrices(upcs, headers["x-facility-id"]);
+
+        if (Object.keys(pricesByUpc).length !== upcs.length) {
+          const morePricesByUpc = await _fetchProductPricesByTerm(dealDetails, headers["x-facility-id"]);
+          pricesByUpc = { ...pricesByUpc, ...morePricesByUpc };
+        }
+
+        // Dedupe by price
+        const seen = new Set<number>();
+        const variants = Object.values(pricesByUpc).filter(v => {
+          if (seen.has(v.price)) return false;
+          seen.add(v.price);
+          return true;
+        }).sort((a, b) => a.price - b.price);
+
+        console.log(`[BOGO] Deal "${name}" (${ad.id}): resolved ${variants.length} price variants`);
+
         if (variants.length === 0) {
-          console.warn(`[BOGO] Deal "${name}" (${ad.id}): no prices found for ${upcs.length} UPCs`);
+          console.warn(`[BOGO] Deal "${name}" (${ad.id}): no prices found`);
           return;
         }
+        variants.sort((a, b) => a.price - b.price);
         const minPrice = variants[0].price; // sorted ascending
         const deal = standardizeKingSoopersAd({ ...ad, retailPrice: minPrice.toString() });
         if (variants.length > 1) {
