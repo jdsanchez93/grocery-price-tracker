@@ -297,15 +297,17 @@ async function getKrogerToken(): Promise<string | null> {
 export async function _getKrogerPriceVariants(
   queryParams: Record<string, string>,
 ): Promise<Record<string, PriceVariant>> {
-  const url = new URL(PRODUCT_URL);
-  for (const p of Object.keys(queryParams)) {
-    url.searchParams.set(p, queryParams[p]);
+  const searchParams = new URLSearchParams();
+  for (const [k, v] of Object.entries(queryParams)) {
+    searchParams.set(k, v);
   }
-  if (url.searchParams.get('filter.limit') == null) {
-    url.searchParams.set('filter.limit', '50');
+  if (searchParams.get('filter.limit') == null) {
+    searchParams.set('filter.limit', '50');
   }
+  // URLSearchParams encodes spaces as '+', but Kroger's API expects '%20'
+  const url = `${PRODUCT_URL}?${searchParams.toString().replace(/\+/g, '%20')}`;
 
-  const response = await fetch(url.toString(), {
+  const response = await fetch(url, {
     headers: {
       Accept: "application/json",
       Authorization: `Bearer ${await getKrogerToken()}`,
@@ -414,6 +416,7 @@ export async function _fetchProductPricesByTerm(
   const pricesByUpc: Record<string, PriceVariant> = {};
   for (const term of searchTerms) {
     const ret = await _getKrogerPriceVariants({ ...baseParams, 'filter.term': term });
+    console.log('term result',term, Object.keys(ret).length)
     Object.assign(pricesByUpc, ret);
   }
 
