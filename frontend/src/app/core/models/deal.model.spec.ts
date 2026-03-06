@@ -4,6 +4,8 @@ import {
   StoreType,
   getStoreTypeFromInstanceId,
   getStoreDisplayName,
+  getStoreSeverity,
+  STORE_SEVERITY,
 } from './deal.model';
 
 export function makeDeal(overrides: Partial<Deal> = {}): Deal {
@@ -77,4 +79,40 @@ describe('deal.model', () => {
       expect(getStoreDisplayName('walmart:xyz')).toBe('walmart:xyz');
     });
   });
+
+  describe('STORE_SEVERITY', () => {
+    it('should have 3 entries', () => {
+      expect(Object.keys(STORE_SEVERITY)).toHaveLength(3);
+    });
+
+    it('should have correct severity for kingsoopers', () => {
+      expect(STORE_SEVERITY.kingsoopers).toEqual('info');
+    });
+
+    it('should have correct severity for safeway', () => {
+      expect(STORE_SEVERITY.safeway).toEqual('danger');
+    });
+
+    it('should have correct severity for sprouts', () => {
+      expect(STORE_SEVERITY.sprouts).toEqual('success');
+    });
+  });
+
+  describe('getStoreSeverity', () => {
+    it('should return info for kingsoopers', () => {
+      expect(getStoreSeverity('kingsoopers:abc')).toBe('info')
+    });
+
+    it('should return display name for safeway', () => {
+      expect(getStoreSeverity('safeway:def')).toBe('danger');
+    });
+
+    it('should return display name for sprouts', () => {
+      expect(getStoreSeverity('sprouts:ghi')).toBe('success');
+    });
+
+    it('should fall back to secondary for unknown store type', () => {
+      expect(getStoreSeverity('walmart:xyz')).toBe('secondary');
+    });
+  })
 });

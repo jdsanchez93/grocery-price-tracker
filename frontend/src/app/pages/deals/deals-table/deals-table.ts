@@ -8,9 +8,7 @@ import { InputIconModule } from 'primeng/inputicon';
 import { TagModule } from 'primeng/tag';
 import { ButtonModule } from 'primeng/button';
 import { ImageModule } from 'primeng/image';
-import { Deal, getStoreDisplayName, getStoreTypeFromInstanceId, StoreType } from '../../../core/models/deal.model';
-
-type TagSeverity = 'success' | 'info' | 'warn' | 'danger' | 'secondary' | 'contrast';
+import { Deal, getStoreDisplayName, getStoreSeverity, TagSeverity } from '../../../core/models/deal.model';
 
 export type DealColumnField = 'image' | 'store' | 'name' | 'dept' | 'priceDisplay' | 'quantity' | 'loyalty';
 
@@ -23,12 +21,6 @@ export interface DealColumnConfig {
   filterOptions?: { value: string; label: string }[];
   style?: Record<string, string>;
 }
-
-const STORE_SEVERITY: Record<StoreType, TagSeverity> = {
-  kingsoopers: 'info',
-  safeway: 'danger',
-  sprouts: 'success',
-};
 
 @Component({
   selector: 'app-deals-table',
@@ -91,8 +83,7 @@ export class DealsTable {
   }
 
   getStoreSeverity(instanceId: string): TagSeverity {
-    const storeType = getStoreTypeFromInstanceId(instanceId);
-    return STORE_SEVERITY[storeType] ?? 'secondary';
+    return getStoreSeverity(instanceId);
   }
 
   getStoreDisplayName(instanceId: string): string {

@@ -46,6 +46,17 @@ export const STORE_TYPE_METADATA: Record<StoreType, StoreMetadata> = {
   sprouts: { name: 'Sprouts', chain: 'sprouts' },
 };
 
+export type TagSeverity = 'success' | 'info' | 'warn' | 'danger' | 'secondary' | 'contrast';
+
+/**
+ * Map of store types to <p-tag> color (severity)
+ */
+export const STORE_SEVERITY: Record<StoreType, TagSeverity> = {
+  kingsoopers: 'info',
+  safeway: 'danger',
+  sprouts: 'success',
+};
+
 /**
  * Helper to get store type from instance ID.
  */
@@ -60,4 +71,14 @@ export function getStoreTypeFromInstanceId(instanceId: string): StoreType {
 export function getStoreDisplayName(instanceId: string): string {
   const storeType = getStoreTypeFromInstanceId(instanceId);
   return STORE_TYPE_METADATA[storeType]?.name ?? instanceId;
+}
+
+/**
+ * Helper to get severity (<p-tag> color) for a store instance ID.
+ * @param instanceId 
+ * @returns 
+ */
+export function getStoreSeverity(instanceId: string): TagSeverity {
+  const storeType = getStoreTypeFromInstanceId(instanceId);
+  return STORE_SEVERITY[storeType] ?? 'secondary';
 }
