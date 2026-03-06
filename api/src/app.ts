@@ -32,7 +32,7 @@ import {
   StoreIdentifiers,
   STORE_TYPE_METADATA,
 } from './types/database';
-import { searchDeals } from './scraper/products';
+
 
 export function createApp() {
   const app = new Hono().basePath('/api');
@@ -422,35 +422,6 @@ export function createApp() {
       weekId,
       deals,
       count: deals.length,
-    });
-  });
-
-  // Search deals from user's selected stores
-  app.get('/me/search', async (c) => {
-    const user = getAuthUser(c);
-    const query = c.req.query('q');
-
-    if (!query) {
-      return c.json({ error: 'Query parameter "q" is required' }, 400);
-    }
-
-    const currentWeekId = getCurrentWeekId();
-    const weekId = c.req.query('week') ?? currentWeekId;
-
-    if (weekId !== currentWeekId && !hasScope(c, 'browse')) {
-      return c.json({ error: 'Browse scope required for historical week access' }, 403);
-    }
-
-    const allDeals = await getDealsForUserStores(user.userId, weekId);
-
-    // Client-side filtering
-    const filteredDeals = searchDeals(allDeals, query);
-
-    return c.json({
-      query,
-      weekId,
-      deals: filteredDeals,
-      count: filteredDeals.length,
     });
   });
 

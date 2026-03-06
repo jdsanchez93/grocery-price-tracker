@@ -350,21 +350,3 @@ export function getAllCanonicalProducts(): CanonicalProduct[] {
   return CANONICAL_PRODUCTS;
 }
 
-/**
- * Client-side search: filter deals by search query
- * Simple keyword matching for MVP
- */
-export function searchDeals<T extends { name?: string; details?: string; dept?: string }>(
-  deals: T[],
-  query: string
-): T[] {
-  const normalizedQuery = normalizeText(query);
-  const queryWords = normalizedQuery.split(' ').filter((w) => w.length > 0);
-
-  return deals.filter((deal) => {
-    const dealText = normalizeText(`${deal.name || ''} ${deal.details || ''} ${deal.dept || ''}`);
-
-    // All query words must appear in the deal text
-    return queryWords.every((word) => dealText.includes(word));
-  });
-}
