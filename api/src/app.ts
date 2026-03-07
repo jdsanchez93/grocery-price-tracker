@@ -40,21 +40,13 @@ export function createApp() {
   app.get('/', (c) => c.text('Grocery Price Tracker API'));
 
   // ===================
-  // Public Endpoints
+  // Store Endpoints (/stores/*)
   // ===================
 
-  // List available store types (e.g., kingsoopers, safeway, sprouts)
-  app.get('/store-types', (c) => {
-    const storeTypes = Object.entries(STORE_TYPE_METADATA).map(([type, meta]) => ({
-      storeType: type,
-      name: meta.name,
-      chain: meta.chain,
-    }));
-    return c.json({ storeTypes });
-  });
+  app.use('/stores/*', authMiddleware({ required: true, scopes: ['user'] }));
 
   // List store instances for a specific type
-  app.get('/store-types/:type/stores', async (c) => {
+  app.get('/stores/:type', async (c) => {
     const storeType = c.req.param('type') as StoreType;
 
     // Validate store type exists
