@@ -8,7 +8,8 @@ import { InputIconModule } from 'primeng/inputicon';
 import { TagModule } from 'primeng/tag';
 import { ButtonModule } from 'primeng/button';
 import { ImageModule } from 'primeng/image';
-import { Deal, getStoreDisplayName, getStoreSeverity, TagSeverity } from '../../../core/models/deal.model';
+import { Deal } from '../../../core/models/deal.model';
+import { getStoreDisplayName, getStoreSeverity, TagSeverity } from '../../../core/models/store.model';
 
 export type DealColumnField = 'image' | 'store' | 'name' | 'dept' | 'priceDisplay' | 'quantity' | 'loyalty';
 

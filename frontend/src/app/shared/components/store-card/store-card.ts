@@ -1,4 +1,4 @@
-import { STORE_SEVERITY, STORE_TYPE_METADATA, StoreType } from '@/app/core/models/deal.model';
+import { STORE_SEVERITY, STORE_TYPE_METADATA, StoreType } from '@/app/core/models/store.model';
 import { Component, input, computed, ChangeDetectionStrategy } from '@angular/core';
 import { CardModule } from 'primeng/card';
 import { TagModule } from "primeng/tag";

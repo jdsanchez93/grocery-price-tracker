@@ -1,6 +1,7 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Deal, getStoreDisplayName } from '../models/deal.model';
+import { Deal } from '../models/deal.model';
+import { getStoreDisplayName } from '../models/store.model';
 import { environment } from '../../../environments/environment';
 
 interface DealsResponse {
