@@ -6,7 +6,6 @@ import { LayoutService } from '@/app/layout/service/layout.service';
 
 @Component({
     selector: 'app-sidebar',
-    standalone: true,
     imports: [AppMenu, RouterModule],
     template: `
         <div class="layout-sidebar">

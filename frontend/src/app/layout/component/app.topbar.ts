@@ -8,7 +8,6 @@ import { AuthButtons } from "@/app/core/auth/auth-buttons/auth-buttons";
 
 @Component({
     selector: 'app-topbar',
-    standalone: true,
     imports: [RouterModule, CommonModule, StyleClassModule, AuthButtons],
     template: ` <div class="layout-topbar">
         <div class="layout-topbar-logo-container">
