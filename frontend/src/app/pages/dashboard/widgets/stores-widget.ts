@@ -20,7 +20,7 @@ import { StoreCard } from '@/app/shared/components/store-card/store-card';
       } @else {
         <div class="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
           @for (store of stores(); track store.instanceId) {
-            <a routerLink="/deals" class="no-underline">
+            <a routerLink="/deals/current-deals" class="no-underline">
               <app-store-card [name]="store.name" [storeType]="store.storeType">
                 <span class="text-muted-color text-sm">{{ storeDealCounts()[store.instanceId] || 0 }} deals</span>
               </app-store-card>
