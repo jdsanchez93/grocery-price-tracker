@@ -1,7 +1,6 @@
 import { Injectable, effect, signal, computed } from '@angular/core';
 
 export interface LayoutConfig {
-    preset: string;
     primary: string;
     surface: string | undefined | null;
     darkTheme: boolean;
@@ -11,7 +10,6 @@ export interface LayoutConfig {
 interface LayoutState {
     staticMenuDesktopInactive: boolean;
     overlayMenuActive: boolean;
-    configSidebarVisible: boolean;
     mobileMenuActive: boolean;
     menuHoverActive: boolean;
     activePath: string | null;
@@ -22,7 +20,6 @@ interface LayoutState {
 })
 export class LayoutService {
     layoutConfig = signal<LayoutConfig>({
-        preset: 'Aura',
         primary: 'emerald',
         surface: null,
         darkTheme: true,
@@ -32,7 +29,6 @@ export class LayoutService {
     layoutState = signal<LayoutState>({
         staticMenuDesktopInactive: false,
         overlayMenuActive: false,
-        configSidebarVisible: false,
         mobileMenuActive: false,
         menuHoverActive: false,
         activePath: null
@@ -58,8 +54,13 @@ export class LayoutService {
         effect(() => {
             const config = this.layoutConfig();
 
-            if (!this.initialized || !config) {
+            if (!config) {
+                return;
+            }
+
+            if (!this.initialized) {
                 this.initialized = true;
+                this.toggleDarkMode(config);
                 return;
             }
 
@@ -102,14 +103,6 @@ export class LayoutService {
         } else {
             this.layoutState.update((prev) => ({ ...prev, mobileMenuActive: !this.layoutState().mobileMenuActive }));
         }
-    }
-
-    showConfigSidebar() {
-        this.layoutState.update((prev) => ({ ...prev, configSidebarVisible: true }));
-    }
-
-    hideConfigSidebar() {
-        this.layoutState.update((prev) => ({ ...prev, configSidebarVisible: false }));
     }
 
     isDesktop() {
