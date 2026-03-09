@@ -67,8 +67,10 @@ export class StoresService {
    * Remove a store from user's stores.
    */
   removeStore(instanceId: string): Observable<UserStoresResponse> {
-    this.loading.set(true);
     this.error.set(null);
+
+    const removed = this.userStores().find(s => s.instanceId === instanceId);
+    this.userStores.update(stores => stores.filter(s => s.instanceId !== instanceId));
 
     return this.http.delete<void>(`${environment.apiUrl}/me/stores/${instanceId}`).pipe(
       switchMap(() => this.http.get<UserStoresResponse>(`${environment.apiUrl}/me/stores`)),
@@ -77,10 +79,12 @@ export class StoresService {
         this.dealsService.loadDeals();
       }),
       catchError((err) => {
+        if (removed) {
+          this.userStores.update(stores => [...stores, removed]);
+        }
         this.error.set(err.message || 'Failed to remove store');
         return throwError(() => err);
       }),
-      finalize(() => this.loading.set(false)),
     );
   }
 

@@ -133,43 +133,49 @@ describe('StoresService', () => {
   });
 
   describe('removeStore', () => {
+    const store = makeUserStore();
+
     beforeEach(() => {
       setup();
-      flushInitialRequest();
+      flushInitialRequest([store]);
     });
 
-    it('should chain DELETE → GET and update stores from the GET response', () => {
-      let completed = false;
-      service.removeStore('kingsoopers:abc').subscribe({ complete: () => (completed = true) });
+    it('should optimistically remove the store before DELETE fires', () => {
+      service.removeStore('kingsoopers:abc').subscribe();
+
+      // Store removed immediately (optimistic)
+      expect(service.getUserStores()).toEqual([]);
+      expect(service.loading()).toBe(false);
 
       const delReq = httpCtrl.expectOne(`${API}/me/stores/kingsoopers:abc`);
       expect(delReq.request.method).toBe('DELETE');
       delReq.flush(null);
 
-      // loading stays true between DELETE and GET
-      expect(service.loading()).toBe(true);
-
       const getReq = httpCtrl.expectOne(`${API}/me/stores`);
       getReq.flush({ stores: [] });
 
-      expect(completed).toBe(true);
       expect(service.getUserStores()).toEqual([]);
       expect(dealsService.loadDeals).toHaveBeenCalled();
       expect(service.loading()).toBe(false);
       httpCtrl.verify();
     });
 
-    it('should set error and re-throw on failure', () => {
+    it('should restore the store on failure', () => {
       let errorCaught = false;
       service.removeStore('kingsoopers:abc').subscribe({
         error: () => (errorCaught = true),
       });
+
+      // Optimistically removed
+      expect(service.getUserStores()).toEqual([]);
 
       const req = httpCtrl.expectOne(`${API}/me/stores/kingsoopers:abc`);
       req.flush('Error', { status: 500, statusText: 'Server Error' });
 
       expect(errorCaught).toBe(true);
       expect(service.error()).toBeTruthy();
+      // Store restored
+      expect(service.getUserStores()).toEqual([store]);
       expect(service.loading()).toBe(false);
       httpCtrl.verify();
     });
