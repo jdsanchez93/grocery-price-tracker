@@ -3,7 +3,7 @@ import { inject, Injectable, signal, computed } from '@angular/core';
 import { DealsService } from './deals.service';
 import { AvailableStore, UserStore, UserStoresResponse, StoreType, AvailableStoresResponse, STORE_TYPE_METADATA } from '../models/store.model';
 import { environment } from '@/environments/environment';
-import { catchError, finalize, Observable, tap, throwError } from 'rxjs';
+import { catchError, finalize, Observable, switchMap, tap, throwError } from 'rxjs';
 
 @Injectable({
   providedIn: 'root',
@@ -45,13 +45,14 @@ export class StoresService {
   /**
    * Add a store to user's stores.
    */
-  addStore(instanceId: string): Observable<void> {
+  addStore(instanceId: string): Observable<UserStoresResponse> {
     this.loading.set(true);
     this.error.set(null);
 
     return this.http.post<void>(`${environment.apiUrl}/me/stores/${instanceId}`, {}).pipe(
-      tap(() => {
-        this.loadUserStores();
+      switchMap(() => this.http.get<UserStoresResponse>(`${environment.apiUrl}/me/stores`)),
+      tap((response) => {
+        this.userStores.set(response.stores);
         this.dealsService.loadDeals();
       }),
       catchError((err) => {
@@ -65,13 +66,14 @@ export class StoresService {
   /**
    * Remove a store from user's stores.
    */
-  removeStore(instanceId: string): Observable<void> {
+  removeStore(instanceId: string): Observable<UserStoresResponse> {
     this.loading.set(true);
     this.error.set(null);
 
     return this.http.delete<void>(`${environment.apiUrl}/me/stores/${instanceId}`).pipe(
-      tap(() => {
-        this.loadUserStores();
+      switchMap(() => this.http.get<UserStoresResponse>(`${environment.apiUrl}/me/stores`)),
+      tap((response) => {
+        this.userStores.set(response.stores);
         this.dealsService.loadDeals();
       }),
       catchError((err) => {

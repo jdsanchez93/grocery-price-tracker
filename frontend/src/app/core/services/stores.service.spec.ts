@@ -94,7 +94,7 @@ describe('StoresService', () => {
       flushInitialRequest();
     });
 
-    it('should return an Observable that triggers loadUserStores and loadDeals on success', () => {
+    it('should chain POST → GET and update stores from the GET response', () => {
       let completed = false;
       service.addStore('kingsoopers:abc').subscribe({ complete: () => (completed = true) });
 
@@ -102,11 +102,15 @@ describe('StoresService', () => {
       expect(postReq.request.method).toBe('POST');
       postReq.flush(null);
 
-      // loadUserStores triggers a new GET
+      // loading stays true between POST and GET
+      expect(service.loading()).toBe(true);
+
       const getReq = httpCtrl.expectOne(`${API}/me/stores`);
-      getReq.flush({ stores: [makeUserStore()] });
+      const stores = [makeUserStore()];
+      getReq.flush({ stores });
 
       expect(completed).toBe(true);
+      expect(service.getUserStores()).toEqual(stores);
       expect(dealsService.loadDeals).toHaveBeenCalled();
       expect(service.loading()).toBe(false);
       httpCtrl.verify();
@@ -134,7 +138,7 @@ describe('StoresService', () => {
       flushInitialRequest();
     });
 
-    it('should return an Observable that triggers loadUserStores and loadDeals on success', () => {
+    it('should chain DELETE → GET and update stores from the GET response', () => {
       let completed = false;
       service.removeStore('kingsoopers:abc').subscribe({ complete: () => (completed = true) });
 
@@ -142,10 +146,14 @@ describe('StoresService', () => {
       expect(delReq.request.method).toBe('DELETE');
       delReq.flush(null);
 
+      // loading stays true between DELETE and GET
+      expect(service.loading()).toBe(true);
+
       const getReq = httpCtrl.expectOne(`${API}/me/stores`);
       getReq.flush({ stores: [] });
 
       expect(completed).toBe(true);
+      expect(service.getUserStores()).toEqual([]);
       expect(dealsService.loadDeals).toHaveBeenCalled();
       expect(service.loading()).toBe(false);
       httpCtrl.verify();
