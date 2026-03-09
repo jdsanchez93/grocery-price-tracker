@@ -4,7 +4,7 @@ import { CurrentDeals } from './current-deals';
 import { DealsService } from '@/app/core/services/deals.service';
 import { Deal } from '../../../core/models/deal.model';
 import { DealColumnConfig, DealsTable } from '../deals-table/deals-table';
-import { makeDeal } from '../../../core/models/deal.model.spec';
+import { makeDeal } from '../../../core/models/test-utils';
 
 @Component({
   selector: 'app-deals-table',

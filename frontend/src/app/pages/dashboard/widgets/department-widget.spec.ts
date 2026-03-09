@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { DepartmentWidget } from './department-widget';
 import { DealsService } from '@/app/core/services/deals.service';
-import { makeDeal } from '@/app/core/models/deal.model.spec';
+import { makeDeal } from '@/app/core/models/test-utils';
 import { Deal } from '@/app/core/models/deal.model';
 
 describe('DepartmentWidget', () => {

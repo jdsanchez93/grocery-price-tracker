@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { DealsService } from './deals.service';
-import { makeDeal } from '../models/deal.model.spec';
+import { makeDeal } from '../models/test-utils';
 
 const API = '/api';
 

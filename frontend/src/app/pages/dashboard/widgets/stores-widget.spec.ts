@@ -4,7 +4,7 @@ import { provideRouter } from '@angular/router';
 import { StoresWidget } from './stores-widget';
 import { DealsService } from '@/app/core/services/deals.service';
 import { StoresService } from '@/app/core/services/stores.service';
-import { makeDeal } from '@/app/core/models/deal.model.spec';
+import { makeDeal } from '@/app/core/models/test-utils';
 import { Deal } from '@/app/core/models/deal.model';
 import { UserStore } from '@/app/core/models/store.model';
 

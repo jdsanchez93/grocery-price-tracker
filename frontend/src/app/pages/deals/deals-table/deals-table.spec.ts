@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { DealsTable, DealColumnConfig } from './deals-table';
 import { Deal } from '../../../core/models/deal.model';
-import { makeDeal } from '../../../core/models/deal.model.spec';
+import { makeDeal } from '../../../core/models/test-utils';
 import { Table } from 'primeng/table';
 
 const TEST_COLUMNS: DealColumnConfig[] = [
