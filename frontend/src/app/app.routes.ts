@@ -1,5 +1,7 @@
 import { Routes } from '@angular/router';
 import { AppLayout } from './layout/component/app.layout';
+import { AuthGuard } from '@auth0/auth0-angular';
+import { roleGuard } from './core/auth/role.guard';
 
 export const routes: Routes = [
     {
@@ -8,7 +10,12 @@ export const routes: Routes = [
         children: [
             { path: '', loadComponent: () => import('./pages/dashboard/dashboard').then(m => m.Dashboard) },
             { path: 'deals', loadChildren: () => import('./pages/deals/deals.routes') },
-            { path: 'user/stores', loadComponent: () => import('./pages/stores/user-stores/user-stores').then(m => m.UserStores) }
+            { path: 'user/stores', loadComponent: () => import('./pages/stores/user-stores/user-stores').then(m => m.UserStores) },
+            {
+                path: 'admin',
+                loadChildren: () => import('./pages/admin/admin.routes'),
+                canActivate: [AuthGuard, roleGuard('grocery:admin')]
+            }
         ]
     },
     {
