@@ -1,4 +1,4 @@
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient, ScanCommand } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
   PutCommand,
@@ -171,7 +171,18 @@ export async function getDealsForWeek(weekId: string = getCurrentWeekId()): Prom
 // ===================
 // Store Instances
 // ===================
+export async function getAllStores(): Promise<StoreInstanceItem[]> {
+  const { ScanCommand } = await import('@aws-sdk/lib-dynamodb');
+  const result = await docClient.send(new ScanCommand({
+    TableName: TABLE_NAME,
+    FilterExpression: 'entityType = :entityType',
+    ExpressionAttributeValues: {
+      ':entityType': 'STORE_INSTANCE',
+    },
+  }));
 
+  return (result.Items || []) as StoreInstanceItem[];
+}
 export async function getStoreInstance(instanceId: string): Promise<StoreInstanceItem | null> {
   const result = await docClient.send(new GetCommand({
     TableName: TABLE_NAME,

@@ -25,6 +25,7 @@ import {
   writeStoreInstance,
   getCircular,
   deleteCircularAndDeals,
+  getAllStores,
 } from './db/client';
 import {
   getCurrentWeekId,
@@ -73,6 +74,15 @@ export function createApp() {
   // Apply auth middleware to all /admin/* routes
   app.use('/admin/*', authMiddleware({ required: true, scopes: ['admin'] }));
 
+  // Get all stores
+  app.get('/admin/stores', async (c) => {
+    const stores = await getAllStores();
+    if (!stores) {
+      return c.json({ error: 'No stores found' }, 404);
+    }
+    return c.json(stores);
+  });
+
   // Create a store instance
   app.post('/admin/stores', async (c) => {
     const body = await c.req.json<{
@@ -115,6 +125,29 @@ export function createApp() {
       success: true,
       store: instance,
     });
+  });
+
+  // Get scrape status for store(s)
+  app.get('/admin/scrape/status', async (c) => {
+    const instanceIds = c.req.query('instanceIds');
+    if (!instanceIds) {
+      return c.json({ error: 'instanceIds is required' }, 400);
+    }
+
+    const currentWeekId = getCurrentWeekId();
+    const instanceIdArray: string[] = instanceIds.split(',');
+
+    const entries = await Promise.all(
+      instanceIdArray.map(async (id) => {
+        const circular = await getCircular(id, currentWeekId);
+        return [id, circular
+          ? { scraped: true, dealCount: circular.dealCount, circularId: circular.circularId }
+          : { scraped: false }
+        ] as const;
+      })
+    );
+    const status = Object.fromEntries(entries);
+    return c.json(status);
   });
 
   // Fetch available circulars for a store instance
