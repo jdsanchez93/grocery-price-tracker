@@ -73,6 +73,30 @@ describe('ScrapeManagement', () => {
     expect(component.loading()).toBe(false);
   });
 
+  it('should show skeletons while loading', async () => {
+    const stores$ = new Subject<AvailableStore[]>();
+    adminServiceMock['getAllStores'].mockReturnValue(stores$);
+
+    // Re-create so ngOnInit uses the pending Subject
+    fixture = TestBed.createComponent(ScrapeManagement);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    expect(component.loading()).toBe(true);
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('p-skeleton')).toBeTruthy();
+    expect(el.querySelector('app-store-card')).toBeNull();
+
+    stores$.next(mockStores);
+    stores$.complete();
+    // getScrapeStatus is already mocked to return of(mockStatus)
+    fixture.detectChanges();
+
+    expect(component.loading()).toBe(false);
+    expect(el.querySelector('p-skeleton')).toBeNull();
+    expect(el.querySelectorAll('app-store-card').length).toBe(2);
+  });
+
   describe('scrapeLabel', () => {
     it('should return "Scrape" for an unscraped store', () => {
       expect(component.scrapeLabel('safeway:456')).toBe('Scrape');

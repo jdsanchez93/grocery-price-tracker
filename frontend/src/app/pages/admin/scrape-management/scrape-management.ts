@@ -7,27 +7,43 @@ import { ButtonModule, ButtonSeverity } from "primeng/button";
 import { AvailableStore } from '@/app/core/models/store.model';
 import { map, switchMap } from 'rxjs';
 import { ScrapeStatusResponse } from '@/app/core/models/admin.model';
+import { SkeletonModule } from 'primeng/skeleton';
 
 @Component({
   selector: 'app-scrape-management',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ToastModule, StoreCard, ButtonModule],
+  imports: [ToastModule, StoreCard, ButtonModule, SkeletonModule],
   providers: [MessageService],
   template: `
     <p-toast />
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
-        @for (store of allStores(); track store.instanceId) {
-          <app-store-card [name]="store.name" [storeType]="store.storeType">
-            <p-button                                             
-              [label]="scrapeLabel(store.instanceId)"                                                                                                                                                                                                                   
-              (click)="scrapeStore(store.instanceId, !scrapeStatus()[store.instanceId]?.scraped ? false : true)" 
-              [loading]="scrapingInProgress().has(store.instanceId)" 
-              [severity]="scrapeSeverity(store.instanceId)" />
-          </app-store-card>
-        }
-    </div>
+    @if (loading()) {
+      <div class="store-grid">
+          @for (_ of skeletonItems; track $index) {                                                                      
+            <p-skeleton height="150px" borderRadius="var(--card-border-radius, 12px)" />                                 
+          }
+      </div>   
+    } @else {
+      <div class="store-grid">
+          @for (store of allStores(); track store.instanceId) {
+            <app-store-card [name]="store.name" [storeType]="store.storeType">
+              <p-button                                             
+                [label]="scrapeLabel(store.instanceId)"                                                                                                                                                                                                                   
+                (click)="scrapeStore(store.instanceId, !scrapeStatus()[store.instanceId]?.scraped ? false : true)" 
+                [loading]="scrapingInProgress().has(store.instanceId)" 
+                [severity]="scrapeSeverity(store.instanceId)" />
+            </app-store-card>
+          }
+      </div>
+    }
   `,
-  styles: ``,
+  styles: `
+    .store-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+  `,
 })
 export class ScrapeManagement implements OnInit {
   private adminService = inject(AdminService);
@@ -41,6 +57,8 @@ export class ScrapeManagement implements OnInit {
 
   allStores = signal<AvailableStore[]>([]);
   scrapeStatus = signal<ScrapeStatusResponse>({});
+
+  skeletonItems = [1, 2, 3, 4];
 
   ngOnInit(): void {
     this.loading.set(true);
