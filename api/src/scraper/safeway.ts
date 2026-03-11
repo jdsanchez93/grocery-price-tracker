@@ -192,7 +192,10 @@ function buildPriceDisplay(
   }
 
   if (postPriceText?.trim()) {
-    parts.push(postPriceText.trim());
+    const cleaned = postPriceText.trim().replace(/\bmember\s*price\b/gi, '').trim();
+    if (cleaned) {
+      parts.push(cleaned);
+    }
   }
 
   return parts.length > 0 ? parts.join(' ') : 'See store for details';
