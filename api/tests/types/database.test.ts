@@ -1,13 +1,5 @@
 import { describe, it, expect } from 'vitest';
-
-// Inline the logic for testing with arbitrary dates
-function getWeekIdForDate(date: Date): string {
-  const adjusted = new Date(date.getTime() - 3 * 24 * 60 * 60 * 1000);
-  const startOfYear = new Date(adjusted.getFullYear(), 0, 1);
-  const days = Math.floor((adjusted.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
-  const weekNumber = Math.ceil((days + startOfYear.getDay() + 1) / 7);
-  return `${adjusted.getFullYear()}-W${weekNumber.toString().padStart(2, '0')}`;
-}
+import { getWeekIdForDate } from '../../src/types/database'
 
 describe('getCurrentWeekId', () => {
   it('should start a new week on Wednesday', () => {

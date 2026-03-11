@@ -32,6 +32,7 @@ import {
   StoreType,
   StoreIdentifiers,
   STORE_TYPE_METADATA,
+  getWeekIdForDate,
 } from './types/database';
 
 
@@ -267,8 +268,6 @@ export function createApp() {
       return c.json({ error: 'Store instance not found' }, 404);
     }
 
-    const weekId = getCurrentWeekId();
-
     // Fetch circulars and extract weekly ad metadata (chain-specific)
     let weeklyAdMeta;
     switch (storeInstance.identifiers.type) {
@@ -293,6 +292,9 @@ export function createApp() {
     if (!weeklyAdMeta) {
       return c.json({ error: 'No weekly ad circular found' }, 404);
     }
+
+    const localDate = new Date(weeklyAdMeta.startDate.split('T')[0] + 'T12:00:00');
+    const weekId = getWeekIdForDate(localDate);
 
     // Check for existing circular (deduplication)
     const existingCircular = await getCircular(storeInstance.instanceId, weekId);
