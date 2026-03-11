@@ -16,7 +16,7 @@ interface FlippProduct {
   id: number;
   name: string;
   description?: string;
-  category_names?: string[];
+  categories?: string[];
   pre_price_text?: string;
   price_text?: string;
   post_price_text?: string;
@@ -204,7 +204,7 @@ function buildPriceDisplay(
 export function standardizeSafewayProduct(product: FlippProduct): StandardDeal {
   const name = product.name;
   const details = product.description || product.sale_story;
-  const dept = (product.category_names || []).join(', ') || 'Uncategorized';
+  const dept = (product.categories || []).join(', ') || 'Uncategorized';
 
   // Parse pricing
   const prePriceText = product.pre_price_text;
