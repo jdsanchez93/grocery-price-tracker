@@ -15,6 +15,7 @@ interface FlippPublication {
 interface FlippProduct {
   id: number;
   name: string;
+  item_type?: number;
   description?: string;
   categories?: string[];
   pre_price_text?: string;
@@ -140,11 +141,35 @@ function parseBulkQuantity(prePriceText?: string): number {
 }
 
 /**
+ * Extract discount patterns from sale_story, stripping "Member Price"
+ */
+function parseSaleStoryDiscount(saleStory?: string): string | null {
+  if (!saleStory) return null;
+
+  const cleaned = saleStory.replace(/\bmember\s*price\b/gi, '').trim();
+  if (!cleaned) return null;
+
+  // Match: "20% off", "$3 off", "$3.00 off"
+  const discountMatch = cleaned.match(/\$?\d+(?:\.\d+)?%?\s*off/i);
+  if (discountMatch) return discountMatch[0];
+
+  // Match: "BUY 2 | GET 1 FREE" (with optional *, pipes, etc.)
+  const bogoMatch = cleaned.match(/buy\s+\d+\s*\|?\s*get\s+\d+\s*free\*?/i);
+  if (bogoMatch) return bogoMatch[0].replace(/[|*]/g, '').replace(/\s+/g, ' ').trim();
+
+  // Match: "SAVE $3.50", "BUY 2 SAVE $3.50"
+  const saveMatch = cleaned.match(/(?:buy\s+\d+\s*\*?\s*)?save\s+\$\d+(?:\.\d+)?/i);
+  if (saveMatch) return saveMatch[0].replace(/\*/g, '').replace(/\s+/g, ' ').trim();
+
+  return null;
+}
+
+/**
  * Detect loyalty requirement from post_price_text
  * Safeway uses "member" and "card" keywords
  */
-function detectLoyalty(postPriceText?: string, disclaimerText?: string): string | undefined {
-  const text = `${postPriceText || ''} ${disclaimerText || ''}`.toLowerCase();
+function detectLoyalty(postPriceText?: string, disclaimerText?: string, saleStory?: string): string | undefined {
+  const text = `${postPriceText || ''} ${disclaimerText || ''} ${saleStory || ''}`.toLowerCase();
 
   if (text.includes('member') || text.includes('card') || text.includes('club')) {
     return 'CARD_REQUIRED';
@@ -223,8 +248,14 @@ export function standardizeSafewayProduct(product: FlippProduct): StandardDeal {
     priceNumber = quantity > 1 ? totalPrice / quantity : totalPrice;
   }
 
-  const priceDisplay = buildPriceDisplay(prePriceText, priceText, postPriceText);
-  const loyalty = detectLoyalty(postPriceText, product.disclaimer_text);
+  let priceDisplay = buildPriceDisplay(prePriceText, priceText, postPriceText);
+  if (priceDisplay === 'See store for details') {
+    const saleDiscount = parseSaleStoryDiscount(product.sale_story);
+    if (saleDiscount) {
+      priceDisplay = saleDiscount;
+    }
+  }
+  const loyalty = detectLoyalty(postPriceText, product.disclaimer_text, product.sale_story);
 
   return {
     store: 'Safeway',
@@ -246,7 +277,14 @@ export async function fetchWeeklyDeals(
   publicationId: string | number
 ): Promise<StandardDeal[]> {
   const products = await fetchProducts(publicationId);
-  return products.map(standardizeSafewayProduct);
+  return products
+    .filter((p) => p.item_type !== 5)
+    .filter((p) => {
+      const hasPrice = p.price_text?.trim();
+      const hasDiscount = parseSaleStoryDiscount(p.sale_story);
+      return hasPrice || hasDiscount;
+    })
+    .map(standardizeSafewayProduct);
 }
 
 /**
