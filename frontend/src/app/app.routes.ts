@@ -7,6 +7,7 @@ export const routes: Routes = [
     {
         path: '',
         component: AppLayout,
+        canActivate: [AuthGuard],
         children: [
             { path: '', loadComponent: () => import('./pages/dashboard/dashboard').then(m => m.Dashboard) },
             { path: 'deals', loadChildren: () => import('./pages/deals/deals.routes') },
@@ -14,7 +15,7 @@ export const routes: Routes = [
             {
                 path: 'admin',
                 loadChildren: () => import('./pages/admin/admin.routes'),
-                canActivate: [AuthGuard, roleGuard('admin')]
+                canActivate: [roleGuard('admin')]
             }
         ]
     },
