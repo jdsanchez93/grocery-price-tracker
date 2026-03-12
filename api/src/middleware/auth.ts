@@ -19,7 +19,7 @@ function getJWKS() {
 export interface AuthUser {
   userId: string; // Auth0 sub claim
   email?: string;
-  scopes: string[];
+  permissions: string[]; // ONLY from RBAC `permissions` JWT claim
 }
 
 // Extend Hono context with auth user
@@ -31,7 +31,6 @@ declare module 'hono' {
 
 interface AuthOptions {
   required?: boolean;
-  scopes?: string[];
 }
 
 /**
@@ -65,9 +64,7 @@ async function verifyToken(token: string): Promise<AuthUser | null> {
       return null;
     }
 
-    // Extract scopes from token (Auth0 uses 'scope' claim)
-    const scopeString = (payload as JWTPayload & { scope?: string }).scope || '';
-    const scopes = scopeString.split(' ').filter((s) => s.length > 0);
+    const permissions = (payload as JWTPayload & { permissions?: string[] }).permissions || [];
 
     // Extract email if present
     const email = (payload as JWTPayload & { email?: string }).email;
@@ -75,7 +72,7 @@ async function verifyToken(token: string): Promise<AuthUser | null> {
     return {
       userId: sub,
       email,
-      scopes,
+      permissions,
     };
   } catch (error) {
     console.error('JWT verification failed:', error);
@@ -84,20 +81,9 @@ async function verifyToken(token: string): Promise<AuthUser | null> {
 }
 
 /**
- * Check if user has required scopes
- */
-function hasRequiredScopes(userScopes: string[], requiredScopes: string[]): boolean {
-  if (requiredScopes.length === 0) {
-    return true;
-  }
-  return requiredScopes.every((scope) => userScopes.includes(scope));
-}
-
-/**
  * Auth middleware factory
  *
  * @param options.required - If true, rejects unauthenticated requests with 401
- * @param options.scopes - Required scopes (rejects with 403 if missing)
  *
  * Usage:
  * ```typescript
@@ -105,11 +91,11 @@ function hasRequiredScopes(userScopes: string[], requiredScopes: string[]): bool
  * app.use('/deals/*', authMiddleware({ required: false }));
  *
  * // Required auth - rejects if no valid token
- * app.use('/me/*', authMiddleware({ required: true, scopes: ['user'] }));
+ * app.use('/me/*', authMiddleware({ required: true }));
  * ```
  */
 export function authMiddleware(options: AuthOptions = {}): MiddlewareHandler {
-  const { required = false, scopes: requiredScopes = [] } = options;
+  const { required = false } = options;
 
   return async (c: Context, next) => {
     const authHeader = c.req.header('Authorization');
@@ -139,17 +125,22 @@ export function authMiddleware(options: AuthOptions = {}): MiddlewareHandler {
       return next();
     }
 
-    // Check scopes
-    if (!hasRequiredScopes(user.scopes, requiredScopes)) {
-      return c.json(
-        { error: 'Insufficient permissions', required: requiredScopes },
-        403
-      );
-    }
-
     // Set user in context
     c.set('user', user);
 
+    return next();
+  };
+}
+
+/**
+ * Permission middleware factory — enforces RBAC permissions on a route
+ */
+export function requirePermission(...perms: string[]): MiddlewareHandler {
+  return async (c, next) => {
+    const user = c.get('user');
+    if (!user) return c.json({ error: 'Authentication required' }, 401);
+    const missing = perms.filter((p) => !user.permissions.includes(p));
+    if (missing.length > 0) return c.json({ error: 'Insufficient permissions', required: perms }, 403);
     return next();
   };
 }
@@ -174,9 +165,8 @@ export function isAuthenticated(c: Context): boolean {
 }
 
 /**
- * Helper to check if user has a specific scope
+ * Helper to check if user has a specific permission
  */
-export function hasScope(c: Context, scope: string): boolean {
-  const user = c.get('user');
-  return user?.scopes.includes(scope) || false;
+export function hasPermission(c: Context, permission: string): boolean {
+  return c.get('user')?.permissions.includes(permission) ?? false;
 }

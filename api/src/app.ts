@@ -11,7 +11,7 @@ import {
   fetchWeeklyDeals as fetchSafewayWeeklyDeals,
   fetchAndPersistWeeklyDeals as fetchAndPersistSafewayWeeklyDeals,
 } from './scraper/safeway';
-import { authMiddleware, getAuthUser, isAuthenticated, hasScope } from './middleware/auth';
+import { authMiddleware, requirePermission, getAuthUser, hasPermission } from './middleware/auth';
 import {
   getDealsForUserStores,
   getUserStores,
@@ -39,16 +39,14 @@ import {
 export function createApp() {
   const app = new Hono().basePath('/api');
 
-  app.get('/', (c) => c.text('Grocery Price Tracker API'));
+  app.use('/*', authMiddleware({ required: true }));
 
   // ===================
   // Store Endpoints (/stores/*)
   // ===================
 
-  app.use('/stores/*', authMiddleware({ required: true, scopes: ['user'] }));
-
   // List store instances for a specific type
-  app.get('/stores/:type', async (c) => {
+  app.get('/stores/:type', requirePermission('stores:read'), async (c) => {
     const storeType = c.req.param('type') as StoreType;
 
     // Validate store type exists
@@ -72,11 +70,9 @@ export function createApp() {
   // Admin Endpoints (/admin/*)
   // ===================
 
-  // Apply auth middleware to all /admin/* routes
-  app.use('/admin/*', authMiddleware({ required: true, scopes: ['admin'] }));
-
   // Get all stores
-  app.get('/admin/stores', async (c) => {
+  // TODO re-work -- either move from /admin to /stores or merge with /admin/scrape/status
+  app.get('/admin/stores', requirePermission('scraper:run'), async (c) => {
     const stores = await getAllStores();
     if (!stores) {
       return c.json({ error: 'No stores found' }, 404);
@@ -85,7 +81,7 @@ export function createApp() {
   });
 
   // Create a store instance
-  app.post('/admin/stores', async (c) => {
+  app.post('/admin/stores', requirePermission('stores:write'), async (c) => {
     const body = await c.req.json<{
       type: StoreType;
       name: string;
@@ -129,7 +125,7 @@ export function createApp() {
   });
 
   // Get scrape status for store(s)
-  app.get('/admin/scrape/status', async (c) => {
+  app.get('/admin/scrape/status', requirePermission('scraper:run'), async (c) => {
     const instanceIds = c.req.query('instanceIds');
     if (!instanceIds) {
       return c.json({ error: 'instanceIds is required' }, 400);
@@ -152,7 +148,7 @@ export function createApp() {
   });
 
   // Fetch available circulars for a store instance
-  app.get('/admin/scrape/circulars', async (c) => {
+  app.get('/admin/scrape/circulars', requirePermission('scraper:run'), async (c) => {
     const instanceId = c.req.query('instanceId');
     if (!instanceId) {
       return c.json({ error: 'instanceId is required' }, 400);
@@ -203,7 +199,7 @@ export function createApp() {
   });
 
   // Preview deals for a store instance (no persist)
-  app.get('/admin/scrape/deals', async (c) => {
+  app.get('/admin/scrape/deals', requirePermission('scraper:run'), async (c) => {
     const instanceId = c.req.query('instanceId');
     const circularId = c.req.query('circularId');
 
@@ -255,7 +251,7 @@ export function createApp() {
 
   // Auto-scrape: fetch circularId + scrape with deduplication
   // Use ?force=true to clear existing data and re-scrape
-  app.post('/admin/scrape/auto', async (c) => {
+  app.post('/admin/scrape/auto', requirePermission('scraper:run'), async (c) => {
     const instanceId = c.req.query('instanceId');
     const force = c.req.query('force') === 'true';
 
@@ -355,16 +351,13 @@ export function createApp() {
   // User Endpoints (/me/*)
   // ===================
 
-  // Apply auth middleware to all /me/* routes
-  app.use('/me/*', authMiddleware({ required: true, scopes: ['user'] }));
-
   // Get current week ID
-  app.get('/me/week', (c) => {
+  app.get('/me/week', requirePermission('deals:read'), (c) => {
     return c.json({ weekId: getCurrentWeekId() });
   });
 
   // Get user's selected stores (now returns store instances)
-  app.get('/me/stores', async (c) => {
+  app.get('/me/stores', requirePermission('user-stores:read'), async (c) => {
     const user = getAuthUser(c);
     const userStores = await getUserStores(user.userId);
 
@@ -391,7 +384,7 @@ export function createApp() {
   });
 
   // Add store instance to user's selection
-  app.post('/me/stores/:instanceId', async (c) => {
+  app.post('/me/stores/:instanceId', requirePermission('user-stores:write'), async (c) => {
     const user = getAuthUser(c);
     const instanceId = c.req.param('instanceId');
 
@@ -424,7 +417,7 @@ export function createApp() {
   });
 
   // Remove store instance from user's selection
-  app.delete('/me/stores/:instanceId', async (c) => {
+  app.delete('/me/stores/:instanceId', requirePermission('user-stores:write'), async (c) => {
     const user = getAuthUser(c);
     const instanceId = c.req.param('instanceId');
 
@@ -434,13 +427,13 @@ export function createApp() {
   });
 
   // Get deals from user's selected stores
-  app.get('/me/deals', async (c) => {
+  app.get('/me/deals', requirePermission('deals:read'), async (c) => {
     const user = getAuthUser(c);
     const currentWeekId = getCurrentWeekId();
     const weekId = c.req.query('week') ?? currentWeekId;
 
-    if (weekId !== currentWeekId && !hasScope(c, 'browse')) {
-      return c.json({ error: 'Browse scope required for historical week access' }, 403);
+    if (weekId !== currentWeekId && !hasPermission(c, 'history:read')) {
+      return c.json({ error: 'history:read permission required for historical week access' }, 403);
     }
 
     const deals = await getDealsForUserStores(user.userId, weekId);
@@ -452,12 +445,8 @@ export function createApp() {
     });
   });
 
-  // Get price history for a product (requires browse scope)
-  app.get('/me/products/:id/history', async (c) => {
-    if (!hasScope(c, 'browse')) {
-      return c.json({ error: 'Browse scope required for price history access' }, 403);
-    }
-
+  // Get price history for a product (requires deals:read + history:read permissions)
+  app.get('/me/products/:id/history', requirePermission('deals:read', 'history:read'), async (c) => {
     const user = getAuthUser(c);
     const canonicalProductId = c.req.param('id');
 
