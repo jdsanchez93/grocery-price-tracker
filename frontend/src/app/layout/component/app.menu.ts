@@ -1,8 +1,9 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, Signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterModule } from '@angular/router';
 import { AuthService } from '@auth0/auth0-angular';
 import { MenuItem } from 'primeng/api';
+import { Auth0User, ROLES_CLAIM } from '@/app/core/auth/auth.constants';
 import { AppMenuitem } from './app.menuitem';
 
 @Component({
@@ -19,9 +20,9 @@ import { AppMenuitem } from './app.menuitem';
     </ul>`,
 })
 export class AppMenu {
-    private user = toSignal(inject(AuthService).user$);
+    private user = toSignal(inject(AuthService).user$) as Signal<Auth0User | null | undefined>;
     private isAdmin = computed(() =>
-        ((this.user() as any)?.[`https://jd-sanchez.com/roles`] ?? []).includes('admin')
+        (this.user()?.[ROLES_CLAIM] ?? []).includes('admin')
     );
 
     model = computed<MenuItem[]>(() => [
