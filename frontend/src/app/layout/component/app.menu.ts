@@ -63,7 +63,7 @@ export class AppMenu {
                     {
                         label: 'Configure Stores',
                         icon: 'pi pi-fw pi-address-book',
-                        routerLink: ['/admin/store-management']
+                        routerLink: ['/admin/configure-stores']
                     }
                 ]
             }

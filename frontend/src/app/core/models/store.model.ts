@@ -31,6 +31,28 @@ export const STORE_SEVERITY: Record<StoreType, TagSeverity> = {
   sprouts: 'success',
 };
 
+export interface FieldConfig {
+  key: 'storeId' | 'facilityId' | 'postalCode';
+  controlType: 'text' | 'select';
+  label: string;
+  placeholder: string;
+  hint?: string;
+}
+
+export const STORE_FIELD_CONFIGS: Record<StoreType, FieldConfig[]> = {
+  kingsoopers: [
+    { key: 'storeId',    controlType: 'text', label: 'Store ID',    placeholder: 'e.g. 62000000', hint: 'Kroger API locationId' },
+    { key: 'facilityId', controlType: 'text', label: 'Facility ID', placeholder: 'e.g. 12345', hint: 'facilityId' },
+  ],
+  safeway: [
+    { key: 'storeId',    controlType: 'text', label: 'Store ID',    placeholder: 'e.g. 1234',  hint: 'Safeway store_code' },
+    { key: 'postalCode', controlType: 'text', label: 'Postal Code', placeholder: 'e.g. 80000', hint: 'Safeway postal_code' },
+  ],
+  sprouts: [
+    { key: 'storeId',    controlType: 'text', label: 'Store ID',    placeholder: 'e.g. 1234',  hint: 'Sprouts store number' },
+  ],
+};
+
 /**
  * Helper to get store type from instance ID.
  */

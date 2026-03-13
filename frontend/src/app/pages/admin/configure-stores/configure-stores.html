@@ -1,0 +1,67 @@
+<p-toast />
+
+<div class="flex flex-col">
+    <div class="card">
+        <p-table [value]="stores()">
+            <ng-template #caption>
+                <h2 class="text-xl font-semibold">Configured Stores</h2>
+            </ng-template>
+            <ng-template #header>
+                <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Instance ID</th>
+                    <th scope="col">Enabled</th>
+                </tr>
+            </ng-template>
+            <ng-template #body let-store>
+                <tr>
+                    <td>{{ store.name }}</td>
+                    <td>{{ store.storeType }}</td>
+                    <td><code>{{ store.instanceId }}</code></td>
+                    <td>{{ store.enabled ? 'Yes' : 'No' }}</td>
+                </tr>
+            </ng-template>
+            <ng-template #emptymessage>
+                <tr>
+                    <td colspan="4">No stores configured yet.</td>
+                </tr>
+            </ng-template>
+        </p-table>
+    </div>
+
+    <div class="card">
+        <h2 class="text-xl font-semibold mb-4">Add Store</h2>
+        <form (ngSubmit)="submitForm()" novalidate autocomplete="off">
+            <p-fluid>
+                <div class="flex flex-col gap-4">
+
+                    <div class="flex flex-col gap-1">
+                        <label for="storeType">Store Type</label>
+                        <p-select inputId="storeType" name="storeType" [ngModel]="selectedType()"
+                            (ngModelChange)="onTypeChange($event)" [options]="storeTypeOptions" optionLabel="label"
+                            optionValue="value" placeholder="Select a chain" />
+                        @if (typeTouched() && !selectedType()) {
+                        <small class="text-red-500">Store type is required</small>
+                        }
+                    </div>
+
+                    <div class="flex flex-col gap-1">
+                        <label for="name">Display Name</label>
+                        <input pInputText id="name" [formControl]="nameControl" type="text"
+                            placeholder="e.g. Pearl St" />
+                        @if (nameControl.invalid && nameControl.touched) {
+                        <small class="text-red-500">Display name is required</small>
+                        }
+                    </div>
+
+                    @for (field of dynamicFields(); track field.key) {
+                    <app-dynamic-form-field [field]="field" [form]="identifierForm()" />
+                    }
+
+                    <p-button type="submit" label="Add Store" [loading]="submitting()" />
+                </div>
+            </p-fluid>
+        </form>
+    </div>
+</div>

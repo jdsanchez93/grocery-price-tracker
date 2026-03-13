@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { AdminService } from './admin.service';
+import { AdminService, CreateStoreRequest, CreateStoreResponse } from './admin.service';
 import { AvailableStore } from '../models/store.model';
 import { ScrapeStatusResponse } from '../models/admin.model';
 
@@ -83,4 +83,39 @@ describe('AdminService', () => {
       expect(result).toEqual(mockStatus);
     });
   });
+
+  describe('createStore', () => {
+    it('should send POST to /admin/stores with CreateStoreRequest body and return CreateStoreResponse', () => {
+      const mockCreateStoreRequest: CreateStoreRequest = {
+        name: 'local kings',
+        type: 'kingsoopers',
+        storeId: '123',
+        facilityId: '456'
+      };
+      const mockCreateStoreResponse: CreateStoreResponse = {
+        success: true,
+        store: {
+          enabled: true,
+          identifiers: {
+            'type': 'kingsoopers',
+            'storeId': '123',
+            'facilityId': '456'
+          },
+          storeType: 'kingsoopers',
+          instanceId: 'kingsoopers:123456',
+          name: 'local kings'
+        },
+      };
+
+      let result: CreateStoreResponse | undefined;
+      service.createStore(mockCreateStoreRequest).subscribe(s => result = s);
+
+      const req = httpCtrl.expectOne(r => r.url === `${API}/admin/stores`);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual(mockCreateStoreRequest);
+      req.flush(mockCreateStoreResponse);
+
+      expect(result).toBe(mockCreateStoreResponse);
+    });
+  })
 });

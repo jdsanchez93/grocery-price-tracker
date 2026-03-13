@@ -2,10 +2,21 @@ import { environment } from '@/environments/environment';
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { AvailableStore } from '../models/store.model';
+import { AvailableStore, StoreType } from '../models/store.model';
 import { AutoScrapeResponse, ScrapeStatusResponse } from '../models/admin.model';
 
+export interface CreateStoreRequest {
+  type: StoreType;
+  name: string;
+  storeId: string;
+  facilityId?: string;
+  postalCode?: string;
+}
 
+export interface CreateStoreResponse {
+  success: boolean;
+  store: AvailableStore;
+}
 
 @Injectable({
   providedIn: 'root',
@@ -23,5 +34,9 @@ export class AdminService {
 
   getScrapeStatus(instanceIds: string[]): Observable<ScrapeStatusResponse> {
     return this.http.get<ScrapeStatusResponse>(`${environment.apiUrl}/admin/scrape/status`, {params: {'instanceIds': instanceIds.join(',')}});
+  }
+
+  createStore(data: CreateStoreRequest): Observable<CreateStoreResponse> {
+    return this.http.post<CreateStoreResponse>(`${environment.apiUrl}/admin/stores`, data);
   }
 }
