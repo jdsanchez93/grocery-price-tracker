@@ -1,6 +1,7 @@
 import { writeDeals, writeCircular } from '../db/client';
 import { getCurrentWeekId, KingSoopersIdentifiers, PriceVariant } from '../types/database';
 import { findCanonicalProductId } from './products';
+import { getKrogerCreds } from '../config';
 
 export type { PriceVariant } from '../types/database';
 
@@ -270,9 +271,7 @@ async function getKrogerToken(): Promise<string | null> {
     return cachedToken.token;
   }
 
-  const clientId = process.env.KROGER_CLIENT_ID;
-  const clientSecret = process.env.KROGER_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return null;
+  const { clientId, clientSecret } = await getKrogerCreds();
 
   const response = await fetch(KROGER_TOKEN_URL, {
     method: "POST",

@@ -1,5 +1,5 @@
 {
-  "app": "npx ts-node --prefer-ts-exts bin/infrastructure.ts",
+  "app": "npx ts-node --prefer-ts-exts bin/app.ts",
   "watch": {
     "include": [
       "**"
@@ -94,6 +94,12 @@
     "@aws-cdk/s3-notifications:addS3TrustKeyPolicyForSnsSubscriptions": true,
     "@aws-cdk/aws-ec2:requirePrivateSubnetsForEgressOnlyInternetGateway": true,
     "@aws-cdk/aws-s3:publicAccessBlockedByDefault": true,
-    "@aws-cdk/aws-lambda:useCdkManagedLogGroup": true
+    "@aws-cdk/aws-lambda:useCdkManagedLogGroup": true,
+    "prod": {
+      "appDomainName": "grocery.jd-sanchez.com",
+      "auth0Domain": "auth0.jd-sanchez.com",
+      "auth0Audience": "grocery.jd-sanchez.com/api",
+      "krogerScope": "product.compact"
+    }
   }
 }
