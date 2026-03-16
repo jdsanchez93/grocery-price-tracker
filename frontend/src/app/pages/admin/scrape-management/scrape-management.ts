@@ -2,7 +2,7 @@ import { AdminService } from '@/app/core/services/admin.service';
 import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
 import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
-import { StoreCard } from "@/app/shared/components/store-card/store-card";
+import { StoreCard, StoreStat } from "@/app/shared/components/store-card/store-card";
 import { ButtonModule, ButtonSeverity } from "primeng/button";
 import { AvailableStore } from '@/app/core/models/store.model';
 import { map, switchMap } from 'rxjs';
@@ -25,7 +25,7 @@ import { SkeletonModule } from 'primeng/skeleton';
     } @else {
       <div class="store-grid">
           @for (store of allStores(); track store.instanceId) {
-            <app-store-card [name]="store.name" [storeType]="store.storeType" [address]="store.address">
+            <app-store-card [name]="store.name" [storeType]="store.storeType" [address]="store.address" [stats]="storeStats(store.instanceId)">
               <p-button                                             
                 [label]="scrapeLabel(store.instanceId)"                                                                                                                                                                                                                   
                 (click)="scrapeStore(store.instanceId, !scrapeStatus()[store.instanceId]?.scraped ? false : true)" 
@@ -88,7 +88,12 @@ export class ScrapeManagement implements OnInit {
 
   scrapeLabel(instanceId: string): string {
     const status = this.scrapeStatus()[instanceId];
-    return status?.scraped ? `Force Re-scrape (${status.dealCount} deals)` : 'Scrape';
+    return status?.scraped ? 'Force Re-scrape' : 'Scrape';
+  }
+
+  storeStats(instanceId: string): StoreStat[] {
+    const status = this.scrapeStatus()[instanceId];
+    return status?.scraped && status.dealCount ? [{ label: 'Deals this week', value: status.dealCount }] : [];
   }
 
   scrapeSeverity(instanceId: string): ButtonSeverity {

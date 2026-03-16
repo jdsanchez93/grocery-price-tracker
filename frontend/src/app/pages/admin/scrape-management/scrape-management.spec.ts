@@ -102,8 +102,35 @@ describe('ScrapeManagement', () => {
       expect(component.scrapeLabel('safeway:456')).toBe('Scrape');
     });
 
-    it('should return "Force Re-scrape (N deals)" for a scraped store', () => {
-      expect(component.scrapeLabel('kingsoopers:123')).toBe('Force Re-scrape (42 deals)');
+    it('should return "Force Re-scrape" for a scraped store', () => {
+      expect(component.scrapeLabel('kingsoopers:123')).toBe('Force Re-scrape');
+    });
+
+    it('should return "Scrape" for an unknown instanceId', () => {
+      expect(component.scrapeLabel('unknown:999')).toBe('Scrape');
+    });
+  });
+
+  describe('storeStats', () => {
+    it('should return empty array for an unscraped store', () => {
+      expect(component.storeStats('safeway:456')).toEqual([]);
+    });
+
+    it('should return deal count stat for a scraped store', () => {
+      expect(component.storeStats('kingsoopers:123')).toEqual([
+        { label: 'Deals this week', value: 42 },
+      ]);
+    });
+
+    it('should return empty array for an unknown instanceId', () => {
+      expect(component.storeStats('unknown:999')).toEqual([]);
+    });
+
+    it('should reflect updated deal count after scraping', () => {
+      component.scrapeStore('safeway:456');
+      expect(component.storeStats('safeway:456')).toEqual([
+        { label: 'Deals this week', value: 15 },
+      ]);
     });
   });
 

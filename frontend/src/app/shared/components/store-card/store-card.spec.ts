@@ -49,8 +49,35 @@ describe('StoreCard', () => {
     expect(fixture.nativeElement.querySelector('p-tag')).toBeTruthy();
   });
 
-  it('should project content', () => {
+  describe('stats input', () => {
+    it('does not render stats block when stats input is not provided', () => {
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.store-stats')).toBeFalsy();
+    });
 
+    it('does not render stats block when stats is an empty array', () => {
+      fixture.componentRef.setInput('stats', []);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.store-stats')).toBeFalsy();
+    });
+
+    it('renders a stat row for each entry', () => {
+      fixture.componentRef.setInput('stats', [
+        { label: 'Deals this week', value: 42 },
+        { label: 'Last scraped', value: '2026-03-10' },
+      ]);
+      fixture.detectChanges();
+      const rows = fixture.nativeElement.querySelectorAll('.store-stat');
+      expect(rows.length).toBe(2);
+    });
+
+    it('renders stat label and value text', () => {
+      fixture.componentRef.setInput('stats', [{ label: 'Deals this week', value: 7 }]);
+      fixture.detectChanges();
+      const text = fixture.nativeElement.querySelector('.store-stats').textContent;
+      expect(text).toContain('Deals this week:');
+      expect(text).toContain('7');
+    });
   });
 
   describe('address input', () => {
