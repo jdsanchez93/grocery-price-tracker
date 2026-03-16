@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, type MockInstance, beforeEach, afterEach } from 'vitest';
 import { standardizeKingSoopersAd, StandardDeal, fetchWeeklyDeals, _resetTokenCache, _getKrogerPriceVariants, _fetchProductPrices, _fetchProductPricesByTerm } from '../../src/scraper/kingsoopers';
 
+vi.mock('../../src/config', () => ({
+  getKrogerCreds: vi.fn().mockResolvedValue({
+    clientId: 'test-client-id',
+    clientSecret: 'test-client-secret',
+  }),
+}));
+
 describe('standardizeKingSoopersAd', () => {
   describe('2FOR deals', () => {
     it('should parse _KRGR_FINAL COST WUB 2FOR with salePrice correctly', () => {
@@ -254,14 +261,11 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
 
   beforeEach(() => {
     fetchSpy = vi.spyOn(global, 'fetch');
-    vi.stubEnv('KROGER_CLIENT_ID', 'test-client-id');
-    vi.stubEnv('KROGER_CLIENT_SECRET', 'test-client-secret');
     _resetTokenCache();
   });
 
   afterEach(() => {
     fetchSpy.mockRestore();
-    vi.unstubAllEnvs();
   });
 
   const DEALS_URL = 'https://www.kingsoopers.com/atlas/v1/shoppable-weekly-deals/deals';
@@ -745,14 +749,11 @@ describe('_getKrogerPriceVariants', () => {
 
   beforeEach(() => {
     fetchSpy = vi.spyOn(global, 'fetch');
-    vi.stubEnv('KROGER_CLIENT_ID', 'test-client-id');
-    vi.stubEnv('KROGER_CLIENT_SECRET', 'test-client-secret');
     _resetTokenCache();
   });
 
   afterEach(() => {
     fetchSpy.mockRestore();
-    vi.unstubAllEnvs();
   });
 
   function mockResponse(body: unknown, ok = true): Response {
@@ -847,14 +848,11 @@ describe('_fetchProductPrices', () => {
 
   beforeEach(() => {
     fetchSpy = vi.spyOn(global, 'fetch');
-    vi.stubEnv('KROGER_CLIENT_ID', 'test-client-id');
-    vi.stubEnv('KROGER_CLIENT_SECRET', 'test-client-secret');
     _resetTokenCache();
   });
 
   afterEach(() => {
     fetchSpy.mockRestore();
-    vi.unstubAllEnvs();
   });
 
   function mockResponse(body: unknown, ok = true): Response {
@@ -910,14 +908,11 @@ describe('_fetchProductPricesByTerm', () => {
 
   beforeEach(() => {
     fetchSpy = vi.spyOn(global, 'fetch');
-    vi.stubEnv('KROGER_CLIENT_ID', 'test-client-id');
-    vi.stubEnv('KROGER_CLIENT_SECRET', 'test-client-secret');
     _resetTokenCache();
   });
 
   afterEach(() => {
     fetchSpy.mockRestore();
-    vi.unstubAllEnvs();
   });
 
   function mockResponse(body: unknown, ok = true): Response {
