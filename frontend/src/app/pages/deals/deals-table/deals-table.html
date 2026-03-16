@@ -1,0 +1,207 @@
+<p-table
+  #dt
+  [value]="deals()"
+  [columns]="columns()"
+  [dataKey]="dataKey()"
+  [rows]="rows()"
+  [rowsPerPageOptions]="rowsPerPageOptions()"
+  [paginator]="true"
+  [loading]="loading()"
+  [globalFilterFields]="globalFilterFields()"
+  [expandedRowKeys]="expandedRows()"
+  [rowExpandMode]="'single'"
+  [scrollable]="true"
+>
+  <ng-template #caption>
+    <div class="table-caption">
+      <div class="caption-search">
+        <p-iconfield>
+          <p-inputicon class="pi pi-search" />
+          <input
+            pInputText
+            type="text"
+            placeholder="Search deals..."
+            [value]="globalFilterValue()"
+            (input)="onGlobalFilter(dt, $event)"
+            aria-label="Search all deals"
+          />
+        </p-iconfield>
+      </div>
+      @if (hasExpandableRows()) {
+        <div class="caption-actions">
+          <p-button
+            label="Expand All"
+            icon="pi pi-plus"
+            severity="secondary"
+            [text]="true"
+            (onClick)="expandAll()"
+          />
+          <p-button
+            label="Collapse All"
+            icon="pi pi-minus"
+            severity="secondary"
+            [text]="true"
+            (onClick)="collapseAll()"
+          />
+        </div>
+      }
+    </div>
+  </ng-template>
+
+  <ng-template #header let-columns>
+    <tr>
+      @if (hasExpandableRows()) {
+        <th class="expand-toggle-col">
+          <span class="sr-only">Expand</span>
+        </th>
+      }
+      @for (col of columns; track col.field) {
+        <th [style]="col.style" [pSortableColumn]="col.sortable ? (col.filterField ?? col.field) : undefined">
+          {{ col.header }}
+          @if (col.sortable) {
+            <p-sortIcon [field]="col.filterField ?? col.field" />
+          }
+        </th>
+      }
+    </tr>
+    <tr>
+      @if (hasExpandableRows()) {
+        <th></th>
+      }
+      @for (col of columns; track col.field) {
+        <th [style]="col.style">
+          @switch (col.filterType) {
+            @case ('multiselect') {
+              <p-columnFilter [field]="col.filterField ?? col.field" matchMode="in" [showMenu]="false">
+                <ng-template #filter let-filter="filterCallback">
+                  <p-multiSelect
+                    [options]="col.filterOptions ?? []"
+                    [placeholder]="'All'"
+                    (onChange)="filter($event.value)"
+                    optionLabel="label"
+                    optionValue="value"
+                    appendTo="body"
+                    [maxSelectedLabels]="1"
+                    [selectedItemsLabel]="'{0} selected'"
+                    [style]="{ 'min-width': '8rem' }"
+                  />
+                </ng-template>
+              </p-columnFilter>
+            }
+            @case ('text') {
+              <p-columnFilter [field]="col.filterField ?? col.field" matchMode="contains" [showMenu]="false">
+                <ng-template #filter let-filter="filterCallback">
+                  <input
+                    pInputText
+                    type="text"
+                    (input)="filter($any($event.target).value)"
+                    [placeholder]="'Filter'"
+                    [style]="{ width: '100%' }"
+                  />
+                </ng-template>
+              </p-columnFilter>
+            }
+          }
+        </th>
+      }
+    </tr>
+  </ng-template>
+
+  <ng-template #body let-deal let-columns="columns" let-expanded="expanded">
+    <tr>
+      @if (hasExpandableRows()) {
+        <td class="expand-toggle-col">
+          @if (deal.priceVariants?.length) {
+            <p-button
+              type="button"
+              [pRowToggler]="deal"
+              [text]="true"
+              [rounded]="true"
+              [icon]="expanded ? 'pi pi-chevron-down' : 'pi pi-chevron-right'"
+              [attr.aria-label]="expanded ? 'Collapse ' + deal.name : 'Expand ' + deal.name"
+            />
+          }
+        </td>
+      }
+      @for (col of columns; track col.field) {
+        <td [style]="col.style">
+          @switch (col.field) {
+            @case ('image') {
+              @if (deal.image) {
+                <p-image [src]="deal.image" alt="" width="40" [preview]="true" />
+              }
+            }
+            @case ('store') {
+              <p-tag
+                [value]="getStoreDisplayName(deal.storeInstanceId)"
+                [severity]="getStoreSeverity(deal.storeInstanceId)"
+              />
+            }
+            @case ('name') {
+              <span class="deal-name">{{ deal.name }}</span>
+              @if (deal.details) {
+                <small class="deal-details">{{ deal.details }}</small>
+              }
+            }
+            @case ('loyalty') {
+              @if (deal.loyalty) {
+                <p-tag [value]="deal.loyalty" severity="warn" />
+              }
+            }
+            @case ('priceDisplay') {
+              {{ deal.priceDisplay }}
+            }
+            @default {
+              {{ getFieldValue(deal, col.field) }}
+            }
+          }
+        </td>
+      }
+    </tr>
+  </ng-template>
+
+  <ng-template #expandedrow let-deal let-columns="columns">
+    <tr>
+      <td [attr.colspan]="expandedColspan()">
+        <div class="expanded-row-content">
+          <table class="variants-table" aria-label="Price variants">
+            <thead>
+              <tr>
+                <th>Example Product</th>
+                <th>Price</th>
+                @if (hasPerLb(deal)) {
+                  <th>Per Lb</th>
+                }
+                @if (hasAvgWeight(deal)) {
+                  <th>Avg Weight</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (variant of deal.priceVariants; track variant.example) {
+                <tr>
+                  <td>{{ variant.example }}</td>
+                  <td>{{ variant.price | currency }}</td>
+                  @if (hasPerLb(deal)) {
+                    <td>{{ variant.perLb != null ? (variant.perLb | currency) : '—' }}</td>
+                  }
+                  @if (hasAvgWeight(deal)) {
+                    <td>{{ variant.avgWeight != null ? (variant.avgWeight + ' lb') : '—' }}</td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </td>
+    </tr>
+  </ng-template>
+
+  <ng-template #emptymessage>
+    <tr>
+      <td [attr.colspan]="expandedColspan()">
+        No deals found.
+      </td>
+    </tr>
+  </ng-template>
+</p-table>

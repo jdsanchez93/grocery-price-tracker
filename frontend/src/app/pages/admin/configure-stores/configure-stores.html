@@ -1,0 +1,151 @@
+<p-toast />
+
+<div class="flex flex-col">
+    <div class="card">
+        <p-table [value]="stores()">
+            <ng-template #caption>
+                <h2 class="text-xl font-semibold">Configured Stores</h2>
+            </ng-template>
+            <ng-template #header>
+                <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Instance ID</th>
+                    <th scope="col">Enabled</th>
+                    <th scope="col"><span class="sr-only">Actions</span></th>
+                </tr>
+            </ng-template>
+            <ng-template #body let-store>
+                <tr>
+                    <td>{{ store.name }}</td>
+                    <td>{{ store.storeType }}</td>
+                    <td><code>{{ store.instanceId }}</code></td>
+                    <td>{{ store.enabled ? 'Yes' : 'No' }}</td>
+                    <td>
+                        <p-button icon="pi pi-pencil" [text]="true" severity="secondary" size="small"
+                            [attr.aria-label]="'Edit ' + store.name"
+                            (onClick)="openEditDialog(store)" />
+                    </td>
+                </tr>
+            </ng-template>
+            <ng-template #emptymessage>
+                <tr>
+                    <td colspan="5">No stores configured yet.</td>
+                </tr>
+            </ng-template>
+        </p-table>
+    </div>
+
+    <div class="card">
+        <h2 class="text-xl font-semibold mb-4">Add Store</h2>
+        <form (ngSubmit)="submitForm()" novalidate autocomplete="off">
+            <p-fluid>
+                <div class="flex flex-col gap-4">
+
+                    <div class="flex flex-col gap-1">
+                        <label for="storeType">Store Type</label>
+                        <p-select inputId="storeType" name="storeType" [ngModel]="selectedType()"
+                            (ngModelChange)="onTypeChange($event)" [options]="storeTypeOptions" optionLabel="label"
+                            optionValue="value" placeholder="Select a chain" />
+                        @if (typeTouched() && !selectedType()) {
+                        <small class="text-red-500">Store type is required</small>
+                        }
+                    </div>
+
+                    <div class="flex flex-col gap-1">
+                        <label for="name">Display Name</label>
+                        <input pInputText id="name" [formControl]="nameControl" type="text"
+                            placeholder="e.g. Pearl St" />
+                        @if (nameControl.invalid && nameControl.touched) {
+                        <small class="text-red-500">Display name is required</small>
+                        }
+                    </div>
+
+                    @for (field of dynamicFields(); track field.key) {
+                    <app-dynamic-form-field [field]="field" [form]="identifierForm()" />
+                    }
+
+                    <fieldset class="address-fieldset" [formGroup]="addressForm">
+                        <legend>Address <span class="optional-label">(optional)</span></legend>
+                        <div class="flex flex-col gap-3">
+                            <div class="flex flex-col gap-1">
+                                <label for="addressLine1">Street Address</label>
+                                <input pInputText id="addressLine1" formControlName="addressLine1" type="text"
+                                    placeholder="e.g. 1234 Pearl St" autocomplete="new-password" />
+                            </div>
+                            <div class="flex gap-3">
+                                <div class="flex flex-col gap-1 flex-1">
+                                    <label for="city">City</label>
+                                    <input pInputText id="city" formControlName="city" type="text"
+                                        placeholder="e.g. Boulder" autocomplete="new-password" />
+                                </div>
+                                <div class="flex flex-col gap-1" style="width: 5rem">
+                                    <label for="state">State</label>
+                                    <input pInputText id="state" formControlName="state" type="text"
+                                        placeholder="CO" maxlength="2" autocomplete="new-password" />
+                                </div>
+                                <div class="flex flex-col gap-1" style="width: 7rem">
+                                    <label for="zipCode">ZIP</label>
+                                    <input pInputText id="zipCode" formControlName="zipCode" type="text"
+                                        placeholder="80000" maxlength="10" autocomplete="new-password" />
+                                </div>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <p-button type="submit" label="Add Store" [loading]="submitting()" />
+                </div>
+            </p-fluid>
+        </form>
+    </div>
+</div>
+
+<p-dialog header="Edit Store" [(visible)]="editDialogVisible" [modal]="true" [style]="{ width: '32rem' }">
+    <form (ngSubmit)="submitEditForm()" novalidate autocomplete="off">
+        <p-fluid>
+            <div class="flex flex-col gap-4">
+
+                <div class="flex flex-col gap-1">
+                    <label for="editName">Display Name</label>
+                    <input pInputText id="editName" [formControl]="editNameControl" type="text" />
+                    @if (editNameControl.invalid && editNameControl.touched) {
+                    <small class="text-red-500">Display name is required</small>
+                    }
+                </div>
+
+                <fieldset class="address-fieldset" [formGroup]="editAddressForm">
+                    <legend>Address <span class="optional-label">(optional)</span></legend>
+                    <div class="flex flex-col gap-3">
+                        <div class="flex flex-col gap-1">
+                            <label for="editAddressLine1">Street Address</label>
+                            <input pInputText id="editAddressLine1" formControlName="addressLine1" type="text"
+                                placeholder="e.g. 1234 Pearl St" autocomplete="new-password" />
+                        </div>
+                        <div class="flex gap-3">
+                            <div class="flex flex-col gap-1 flex-1">
+                                <label for="editCity">City</label>
+                                <input pInputText id="editCity" formControlName="city" type="text"
+                                    placeholder="e.g. Boulder" autocomplete="new-password" />
+                            </div>
+                            <div class="flex flex-col gap-1" style="width: 5rem">
+                                <label for="editState">State</label>
+                                <input pInputText id="editState" formControlName="state" type="text"
+                                    placeholder="CO" maxlength="2" autocomplete="new-password" />
+                            </div>
+                            <div class="flex flex-col gap-1" style="width: 7rem">
+                                <label for="editZipCode">ZIP</label>
+                                <input pInputText id="editZipCode" formControlName="zipCode" type="text"
+                                    placeholder="80000" maxlength="10" autocomplete="new-password" />
+                            </div>
+                        </div>
+                    </div>
+                </fieldset>
+
+            </div>
+        </p-fluid>
+    </form>
+    <ng-template #footer>
+        <p-button label="Cancel" severity="secondary" [text]="true" (onClick)="editDialogVisible.set(false)" />
+        <p-button label="Save" [loading]="editSubmitting()" (onClick)="submitEditForm()" />
+    </ng-template>
+</p-dialog>
