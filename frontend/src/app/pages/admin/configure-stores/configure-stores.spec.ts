@@ -153,6 +153,23 @@ describe('ConfigureStores', () => {
     });
   });
 
+  // --- addressForm ---
+
+  describe('addressForm', () => {
+    it('has the four expected controls', () => {
+      const controls = Object.keys(component.addressForm.controls);
+      expect(controls).toEqual(['addressLine1', 'city', 'state', 'zipCode']);
+    });
+
+    it('all controls start empty', () => {
+      const { addressLine1, city, state, zipCode } = component.addressForm.getRawValue();
+      expect(addressLine1).toBeFalsy();
+      expect(city).toBeFalsy();
+      expect(state).toBeFalsy();
+      expect(zipCode).toBeFalsy();
+    });
+  });
+
   // --- submitForm: success path ---
 
   describe('submitForm — success', () => {
@@ -162,7 +179,7 @@ describe('ConfigureStores', () => {
       component.identifierForm().setValue({ storeId: '12345', facilityId: '67890' });
     }
 
-    it('calls createStore with correct payload', () => {
+    it('calls createStore with correct payload (no address)', () => {
       const store = makeStore({ name: 'KS Pearl' });
       mockAdminService.createStore.mockReturnValue(of({ success: true, store }));
       fillForm();
@@ -174,6 +191,66 @@ describe('ConfigureStores', () => {
         facilityId: '67890',
         postalCode: undefined,
       });
+    });
+
+    it('omits address from payload when all address fields are empty', () => {
+      fillForm();
+      component.addressForm.setValue({ addressLine1: '', city: '', state: '', zipCode: '' });
+      component.submitForm();
+      const payload = mockAdminService.createStore.mock.calls[0][0];
+      expect(payload).not.toHaveProperty('address');
+    });
+
+    it('includes address in payload when addressLine1 is filled', () => {
+      fillForm();
+      component.addressForm.setValue({ addressLine1: '1234 Pearl St', city: 'Boulder', state: 'CO', zipCode: '80000' });
+      component.submitForm();
+      const payload = mockAdminService.createStore.mock.calls[0][0];
+      expect(payload.address).toEqual({
+        addressLine1: '1234 Pearl St',
+        city: 'Boulder',
+        state: 'CO',
+        zipCode: '80000',
+      });
+    });
+
+    it('includes address when only city is filled (no addressLine1)', () => {
+      fillForm();
+      component.addressForm.setValue({ addressLine1: '', city: 'Boulder', state: 'CO', zipCode: '' });
+      component.submitForm();
+      const payload = mockAdminService.createStore.mock.calls[0][0];
+      expect(payload.address).toBeDefined();
+      expect(payload.address.city).toBe('Boulder');
+    });
+
+    it('omits zipCode from address when it is empty', () => {
+      fillForm();
+      component.addressForm.setValue({ addressLine1: '123 Main St', city: 'Denver', state: 'CO', zipCode: '' });
+      component.submitForm();
+      const payload = mockAdminService.createStore.mock.calls[0][0];
+      expect(payload.address?.zipCode).toBeUndefined();
+    });
+
+    it('trims whitespace from address fields', () => {
+      fillForm();
+      component.addressForm.setValue({ addressLine1: '  Main St  ', city: '  Denver  ', state: ' CO ', zipCode: ' 80201 ' });
+      component.submitForm();
+      const payload = mockAdminService.createStore.mock.calls[0][0];
+      expect(payload.address).toEqual({
+        addressLine1: 'Main St',
+        city: 'Denver',
+        state: 'CO',
+        zipCode: '80201',
+      });
+    });
+
+    it('resets addressForm on success', () => {
+      const store = makeStore();
+      mockAdminService.createStore.mockReturnValue(of({ success: true, store }));
+      fillForm();
+      component.addressForm.setValue({ addressLine1: '123 Main St', city: 'Denver', state: 'CO', zipCode: '80201' });
+      component.submitForm();
+      expect(component.addressForm.getRawValue()).toEqual({ addressLine1: null, city: null, state: null, zipCode: null });
     });
 
     it('appends returned store to stores signal', () => {

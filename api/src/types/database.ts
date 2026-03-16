@@ -93,6 +93,13 @@ export interface DealItem extends BaseItem {
   priceVariants?: PriceVariant[];
 }
 
+export interface StoreAddress {
+  addressLine1: string;
+  city: string;
+  state: string;
+  zipCode?: string;
+}
+
 // Store instance (specific physical location)
 export interface StoreInstanceItem extends BaseItem {
   entityType: 'STORE_INSTANCE';
@@ -101,6 +108,7 @@ export interface StoreInstanceItem extends BaseItem {
   name: string; // Display name, e.g., "King Soopers - Boulder"
   identifiers: StoreIdentifiers;
   enabled: boolean;
+  address?: StoreAddress;
 }
 
 export interface CircularItem extends BaseItem {

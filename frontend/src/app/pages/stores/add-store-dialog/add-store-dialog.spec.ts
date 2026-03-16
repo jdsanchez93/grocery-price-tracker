@@ -131,4 +131,50 @@ describe('AddStoreDialog', () => {
     expect(options.length).toBe(1);
     expect(options[0].value).toBe('kingsoopers:a');
   });
+
+  describe('locationOptions — address label formatting', () => {
+    it('uses just the store name when no address', () => {
+      (mockStoresService.getAvailableStores as WritableSignal<unknown[]>).set([
+        { instanceId: 'kingsoopers:a', name: 'Pearl St', storeType: 'kingsoopers', identifiers: {}, enabled: true },
+      ]);
+
+      const options = component.locationOptions();
+      expect(options[0].label).toBe('Pearl St');
+    });
+
+    it('appends full address when addressLine1 is present', () => {
+      (mockStoresService.getAvailableStores as WritableSignal<unknown[]>).set([
+        {
+          instanceId: 'kingsoopers:a', name: 'Pearl St', storeType: 'kingsoopers', identifiers: {}, enabled: true,
+          address: { addressLine1: '1234 Pearl St', city: 'Boulder', state: 'CO', zipCode: '80000' },
+        },
+      ]);
+
+      const options = component.locationOptions();
+      expect(options[0].label).toBe('Pearl St — 1234 Pearl St, Boulder, CO');
+    });
+
+    it('appends city and state when addressLine1 is absent', () => {
+      (mockStoresService.getAvailableStores as WritableSignal<unknown[]>).set([
+        {
+          instanceId: 'kingsoopers:a', name: 'Pearl St', storeType: 'kingsoopers', identifiers: {}, enabled: true,
+          address: { addressLine1: '', city: 'Boulder', state: 'CO' },
+        },
+      ]);
+
+      const options = component.locationOptions();
+      expect(options[0].label).toBe('Pearl St — Boulder, CO');
+    });
+
+    it('does not append anything for disabled stores (they are filtered out)', () => {
+      (mockStoresService.getAvailableStores as WritableSignal<unknown[]>).set([
+        {
+          instanceId: 'kingsoopers:a', name: 'Pearl St', storeType: 'kingsoopers', identifiers: {}, enabled: false,
+          address: { addressLine1: '123 Main St', city: 'Denver', state: 'CO' },
+        },
+      ]);
+
+      expect(component.locationOptions()).toHaveLength(0);
+    });
+  });
 });

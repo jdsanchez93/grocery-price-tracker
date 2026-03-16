@@ -62,7 +62,7 @@ import { SkeletonModule } from 'primeng/skeleton';
         } @else {
           <div class="store-grid">
             @for(store of stores(); track store.instanceId) {
-              <app-store-card [name]="store.name" [storeType]="store.storeType">
+              <app-store-card [name]="store.name" [storeType]="store.storeType" [address]="store.address">
                 <p-button 
                   icon="pi pi-trash" 
                   [rounded]="true" 

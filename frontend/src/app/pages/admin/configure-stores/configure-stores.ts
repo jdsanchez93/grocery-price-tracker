@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
-import { FormControl, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { FluidModule } from 'primeng/fluid';
 import { InputTextModule } from 'primeng/inputtext';
@@ -28,6 +28,22 @@ import { DynamicFormField } from './dynamic-form-field/dynamic-form-field';
     DynamicFormField,
   ],
   templateUrl: './configure-stores.html',
+  styles: `
+    .address-fieldset {
+      border: 1px solid var(--surface-border);
+      border-radius: var(--border-radius);
+      padding: 1rem;
+    }
+    .address-fieldset legend {
+      padding: 0 0.5rem;
+      font-weight: 500;
+    }
+    .optional-label {
+      font-weight: 400;
+      color: var(--text-color-secondary);
+      font-size: 0.875rem;
+    }
+  `,
 })
 export class ConfigureStores implements OnInit {
   private adminService = inject(AdminService);
@@ -37,6 +53,13 @@ export class ConfigureStores implements OnInit {
   selectedType = signal<StoreType | null>(null);
   typeTouched  = signal(false);
   nameControl  = new FormControl('', Validators.required);
+
+  addressForm = new FormGroup({
+    addressLine1: new FormControl(''),
+    city: new FormControl(''),
+    state: new FormControl(''),
+    zipCode: new FormControl(''),
+  });
 
   dynamicFields = computed(() =>
     this.selectedType() ? STORE_FIELD_CONFIGS[this.selectedType()!] : []
@@ -71,12 +94,22 @@ export class ConfigureStores implements OnInit {
 
     this.submitting.set(true);
     const ids = this.identifierForm().getRawValue() as Record<string, string>;
+    const addr = this.addressForm.getRawValue();
+    const hasAddress = !!(addr.addressLine1?.trim() || addr.city?.trim());
     const payload: CreateStoreRequest = {
       type,
       name: this.nameControl.value!.trim(),
       storeId: ids['storeId'],
       facilityId: ids['facilityId'],
       postalCode: ids['postalCode'],
+      ...(hasAddress && {
+        address: {
+          addressLine1: addr.addressLine1?.trim() ?? '',
+          city: addr.city?.trim() ?? '',
+          state: addr.state?.trim() ?? '',
+          zipCode: addr.zipCode?.trim() || undefined,
+        },
+      }),
     };
 
     this.adminService.createStore(payload).subscribe({
@@ -86,6 +119,7 @@ export class ConfigureStores implements OnInit {
         this.selectedType.set(null);
         this.typeTouched.set(false);
         this.nameControl.reset('');
+        this.addressForm.reset();
         this.submitting.set(false);
       },
       error: (err) => {

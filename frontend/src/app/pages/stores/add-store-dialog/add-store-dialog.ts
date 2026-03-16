@@ -133,10 +133,13 @@ export class AddStoreDialog {
   locationOptions = computed<LocationOption[]>(() => {
     return this.availableStores()
       .filter(store => store.enabled)
-      .map(store => ({
-        value: store.instanceId,
-        label: store.name
-      }));
+      .map(store => {
+        const addr = store.address;
+        const addrStr = addr
+          ? ` — ${addr.addressLine1 ? addr.addressLine1 + ', ' : ''}${addr.city}, ${addr.state}`
+          : '';
+        return { value: store.instanceId, label: store.name + addrStr };
+      });
   });
 
   canAddStore = computed(() => {

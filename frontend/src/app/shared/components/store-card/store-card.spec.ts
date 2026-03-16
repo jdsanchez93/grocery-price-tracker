@@ -27,7 +27,6 @@ describe('StoreCard', () => {
     fixture.componentRef.setInput('storeType', 'kingsoopers');
     fixture.detectChanges();
     expect(component.storeDisplayName()).toBe('King Soopers');
-    expect(component.chainName()).toBe('kroger');
     expect(component.tagSeverity()).toBe('info');
   });
 
@@ -35,7 +34,6 @@ describe('StoreCard', () => {
     fixture.componentRef.setInput('storeType', 'safeway');
     fixture.detectChanges();
     expect(component.storeDisplayName()).toBe('Safeway');
-    expect(component.chainName()).toBe('albertsons');
     expect(component.tagSeverity()).toBe('danger');
   });
 
@@ -43,18 +41,57 @@ describe('StoreCard', () => {
     fixture.componentRef.setInput('storeType', 'sprouts');
     fixture.detectChanges();
     expect(component.storeDisplayName()).toBe('Sprouts');
-    expect(component.chainName()).toBe('sprouts');
     expect(component.tagSeverity()).toBe('success');
   });
 
   it('should render the DOM', () => {
     expect(fixture.nativeElement.textContent).toContain('King Soopers');
-    expect(fixture.nativeElement.textContent).toContain('kroger');
     expect(fixture.nativeElement.querySelector('p-tag')).toBeTruthy();
   });
 
   it('should project content', () => {
 
+  });
+
+  describe('address input', () => {
+    it('does not render address block when address input is not provided', () => {
+      fixture.detectChanges();
+      const addressEl = fixture.nativeElement.querySelector('.store-address');
+      expect(addressEl).toBeFalsy();
+    });
+
+    it('renders address block with full address when provided', () => {
+      fixture.componentRef.setInput('address', {
+        addressLine1: '1234 Pearl St',
+        city: 'Boulder',
+        state: 'CO',
+        zipCode: '80000',
+      });
+      fixture.detectChanges();
+      const text = fixture.nativeElement.textContent;
+      expect(text).toContain('1234 Pearl St');
+      expect(text).toContain('Boulder, CO');
+    });
+
+    it('renders city and state when addressLine1 is absent', () => {
+      fixture.componentRef.setInput('address', {
+        addressLine1: '',
+        city: 'Denver',
+        state: 'CO',
+      });
+      fixture.detectChanges();
+      const addressEl = fixture.nativeElement.querySelector('.store-address');
+      expect(addressEl).toBeTruthy();
+      expect(addressEl.textContent).toContain('Denver, CO');
+      expect(addressEl.textContent).not.toContain('undefined');
+    });
+
+    it('does not render address block when address is undefined', () => {
+      fixture.componentRef.setInput('address', undefined);
+      fixture.detectChanges();
+      const addressEl = fixture.nativeElement.querySelector('.store-address');
+      expect(addressEl).toBeFalsy();
+    });
   });
 });
 

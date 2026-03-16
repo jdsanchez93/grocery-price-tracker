@@ -19,6 +19,7 @@ import {
   getISODate,
   StoreType,
   StoreIdentifiers,
+  StoreAddress,
   generateStoreInstanceId,
 } from '../types/database';
 import { StandardDeal } from '../scraper/kingsoopers';
@@ -213,7 +214,8 @@ export async function getStoreInstancesByType(storeType: StoreType): Promise<Sto
 export async function writeStoreInstance(
   identifiers: StoreIdentifiers,
   name: string,
-  enabled: boolean = true
+  enabled: boolean = true,
+  address?: StoreAddress
 ): Promise<StoreInstanceItem> {
   const now = new Date().toISOString();
   const instanceId = generateStoreInstanceId(identifiers);
@@ -227,6 +229,7 @@ export async function writeStoreInstance(
     name,
     identifiers,
     enabled,
+    ...(address && { address }),
     createdAt: now,
     updatedAt: now,
   };

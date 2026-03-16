@@ -25,7 +25,7 @@ import { SkeletonModule } from 'primeng/skeleton';
     } @else {
       <div class="store-grid">
           @for (store of allStores(); track store.instanceId) {
-            <app-store-card [name]="store.name" [storeType]="store.storeType">
+            <app-store-card [name]="store.name" [storeType]="store.storeType" [address]="store.address">
               <p-button                                             
                 [label]="scrapeLabel(store.instanceId)"                                                                                                                                                                                                                   
                 (click)="scrapeStore(store.instanceId, !scrapeStatus()[store.instanceId]?.scraped ? false : true)" 

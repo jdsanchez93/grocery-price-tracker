@@ -77,6 +77,13 @@ export function getStoreSeverity(instanceId: string): TagSeverity {
   return STORE_SEVERITY[storeType] ?? 'secondary';
 }
 
+export interface StoreAddress {
+  addressLine1: string;
+  city: string;
+  state: string;
+  zipCode?: string;
+}
+
 /**
  * A store that the user has added to their account.
  */
@@ -85,6 +92,7 @@ export interface UserStore {
   name: string;
   storeType: StoreType;
   chain: string;
+  address?: StoreAddress;
   addedAt: string;
 }
 
@@ -97,6 +105,7 @@ export interface AvailableStore {
   storeType: StoreType;
   identifiers: Record<string, string>;
   enabled: boolean;
+  address?: StoreAddress;
 }
 
 /**

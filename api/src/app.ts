@@ -31,6 +31,7 @@ import {
   getCurrentWeekId,
   StoreType,
   StoreIdentifiers,
+  StoreAddress,
   STORE_TYPE_METADATA,
   getWeekIdForDate,
 } from './types/database';
@@ -88,6 +89,7 @@ export function createApp() {
       storeId: string;
       facilityId?: string;
       postalCode?: string;
+      address?: { addressLine1?: string; city?: string; state?: string; zipCode?: string };
     }>();
 
     if (!body.type || !body.name || !body.storeId) {
@@ -116,7 +118,8 @@ export function createApp() {
         return c.json({ error: 'Invalid store type' }, 400);
     }
 
-    const instance = await writeStoreInstance(identifiers, body.name);
+    const address = body.address as StoreAddress | undefined;
+    const instance = await writeStoreInstance(identifiers, body.name, true, address);
 
     return c.json({
       success: true,
@@ -375,6 +378,7 @@ export function createApp() {
           storeType: storeInstance?.storeType,
           chain: storeTypeMeta?.chain,
           identifiers: storeInstance?.identifiers,
+          address: storeInstance?.address,
           addedAt: us.addedAt,
         };
       })
@@ -411,6 +415,7 @@ export function createApp() {
         storeType: storeInstance.storeType,
         chain: storeTypeMeta?.chain,
         identifiers: storeInstance.identifiers,
+        address: storeInstance.address,
         addedAt: userStore.addedAt,
       },
     });

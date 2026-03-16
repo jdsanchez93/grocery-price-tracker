@@ -59,6 +59,34 @@
                     <app-dynamic-form-field [field]="field" [form]="identifierForm()" />
                     }
 
+                    <fieldset class="address-fieldset" [formGroup]="addressForm">
+                        <legend>Address <span class="optional-label">(optional)</span></legend>
+                        <div class="flex flex-col gap-3">
+                            <div class="flex flex-col gap-1">
+                                <label for="addressLine1">Street Address</label>
+                                <input pInputText id="addressLine1" formControlName="addressLine1" type="text"
+                                    placeholder="e.g. 1234 Pearl St" />
+                            </div>
+                            <div class="flex gap-3">
+                                <div class="flex flex-col gap-1 flex-1">
+                                    <label for="city">City</label>
+                                    <input pInputText id="city" formControlName="city" type="text"
+                                        placeholder="e.g. Boulder" />
+                                </div>
+                                <div class="flex flex-col gap-1" style="width: 5rem">
+                                    <label for="state">State</label>
+                                    <input pInputText id="state" formControlName="state" type="text"
+                                        placeholder="CO" maxlength="2" />
+                                </div>
+                                <div class="flex flex-col gap-1" style="width: 7rem">
+                                    <label for="zipCode">ZIP</label>
+                                    <input pInputText id="zipCode" formControlName="zipCode" type="text"
+                                        placeholder="80000" maxlength="10" />
+                                </div>
+                            </div>
+                        </div>
+                    </fieldset>
+
                     <p-button type="submit" label="Add Store" [loading]="submitting()" />
                 </div>
             </p-fluid>

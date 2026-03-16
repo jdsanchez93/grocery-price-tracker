@@ -2,7 +2,7 @@ import { environment } from '@/environments/environment';
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { AvailableStore, StoreType } from '../models/store.model';
+import { AvailableStore, StoreAddress, StoreType } from '../models/store.model';
 import { AutoScrapeResponse, ScrapeStatusResponse } from '../models/admin.model';
 
 export interface CreateStoreRequest {
@@ -11,6 +11,7 @@ export interface CreateStoreRequest {
   storeId: string;
   facilityId?: string;
   postalCode?: string;
+  address?: StoreAddress;
 }
 
 export interface CreateStoreResponse {

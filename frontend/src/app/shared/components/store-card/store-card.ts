@@ -1,4 +1,4 @@
-import { STORE_SEVERITY, STORE_TYPE_METADATA, StoreType } from '@/app/core/models/store.model';
+import { STORE_SEVERITY, STORE_TYPE_METADATA, StoreAddress, StoreType } from '@/app/core/models/store.model';
 import { Component, input, computed, ChangeDetectionStrategy } from '@angular/core';
 import { CardModule } from 'primeng/card';
 import { TagModule } from "primeng/tag";
@@ -10,13 +10,22 @@ import { TagModule } from "primeng/tag";
   template: `
     <p-card>
       <ng-template #title>
-        <p-tag 
-          [severity]="this.tagSeverity()" 
+        <p-tag
+          [severity]="this.tagSeverity()"
           [value]="this.storeDisplayName()"
         />
       </ng-template>
-      <ng-template #subtitle>{{chainName()}}</ng-template>
-      <ng-template #content>{{name()}}</ng-template>
+      <ng-template #subtitle>{{name()}}</ng-template>
+      <ng-template #content>
+        @if (address()) {
+          <div class="store-address">
+            @if (address()?.addressLine1) {
+              <div>{{address()!.addressLine1}}</div>
+            }
+            <div>{{address()!.city}}, {{address()!.state}}</div>
+          </div>
+        }
+      </ng-template>
       <ng-template #footer>
           <div class="flex gap-2 mt-1">
             <ng-content />
@@ -24,15 +33,16 @@ import { TagModule } from "primeng/tag";
       </ng-template>
     </p-card>
   `,
-  styles: ``,
+  styles: `
+  `,
 })
 export class StoreCard {
   name = input.required<string>();
   storeType = input.required<StoreType>();
+  address = input<StoreAddress | undefined>();
 
   private storeMetadata = computed(() => STORE_TYPE_METADATA[this.storeType()]);
 
   storeDisplayName = computed(() => this.storeMetadata()?.name ?? this.storeType());
-  chainName = computed(() => this.storeMetadata()?.chain ?? '');
   tagSeverity = computed(() => STORE_SEVERITY[this.storeType()]);
 }
