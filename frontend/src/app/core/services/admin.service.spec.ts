@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { AdminService, CreateStoreRequest, CreateStoreResponse } from './admin.service';
+import { AdminService, CreateStoreRequest, CreateStoreResponse, UpdateStoreRequest, UpdateStoreResponse } from './admin.service';
 import { AvailableStore } from '../models/store.model';
 import { ScrapeStatusResponse } from '../models/admin.model';
 
@@ -117,5 +117,50 @@ describe('AdminService', () => {
 
       expect(result).toBe(mockCreateStoreResponse);
     });
-  })
+  });
+
+  describe('updateStore', () => {
+    const instanceId = 'kingsoopers:abc123';
+    const mockStore: AvailableStore = {
+      instanceId,
+      name: 'Updated Name',
+      storeType: 'kingsoopers',
+      identifiers: {},
+      enabled: true,
+    };
+
+    it('should send PATCH to /admin/stores/:instanceId with the request body', () => {
+      const request: UpdateStoreRequest = { name: 'Updated Name' };
+      service.updateStore(instanceId, request).subscribe();
+
+      const req = httpCtrl.expectOne(`${API}/admin/stores/${instanceId}`);
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.body).toEqual(request);
+      req.flush({ success: true, store: mockStore });
+    });
+
+    it('should return the UpdateStoreResponse from the server', () => {
+      const request: UpdateStoreRequest = { name: 'Updated Name' };
+      const mockResponse: UpdateStoreResponse = { success: true, store: mockStore };
+
+      let result: UpdateStoreResponse | undefined;
+      service.updateStore(instanceId, request).subscribe(r => result = r);
+
+      httpCtrl.expectOne(`${API}/admin/stores/${instanceId}`).flush(mockResponse);
+
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should include address in request body when provided', () => {
+      const request: UpdateStoreRequest = {
+        name: 'Updated Name',
+        address: { addressLine1: '123 Main St', city: 'Denver', state: 'CO' },
+      };
+      service.updateStore(instanceId, request).subscribe();
+
+      const req = httpCtrl.expectOne(`${API}/admin/stores/${instanceId}`);
+      expect(req.request.body.address).toEqual(request.address);
+      req.flush({ success: true, store: mockStore });
+    });
+  });
 });

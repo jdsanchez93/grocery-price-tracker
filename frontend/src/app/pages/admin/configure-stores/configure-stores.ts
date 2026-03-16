@@ -1,13 +1,14 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
+import { DialogModule } from 'primeng/dialog';
 import { FluidModule } from 'primeng/fluid';
 import { InputTextModule } from 'primeng/inputtext';
 import { MessageService } from 'primeng/api';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { ToastModule } from 'primeng/toast';
-import { AdminService, CreateStoreRequest } from '../../../core/services/admin.service';
+import { AdminService, CreateStoreRequest, UpdateStoreRequest } from '../../../core/services/admin.service';
 import { AvailableStore, STORE_FIELD_CONFIGS, STORE_TYPE_METADATA, StoreType } from '../../../core/models/store.model';
 import { FieldControlService } from './field-control.service';
 import { DynamicFormField } from './dynamic-form-field/dynamic-form-field';
@@ -25,6 +26,7 @@ import { DynamicFormField } from './dynamic-form-field/dynamic-form-field';
     ButtonModule,
     ToastModule,
     FluidModule,
+    DialogModule,
     DynamicFormField,
   ],
   templateUrl: './configure-stores.html',
@@ -70,6 +72,17 @@ export class ConfigureStores implements OnInit {
   loading    = signal(false);
   submitting = signal(false);
   stores     = signal<AvailableStore[]>([]);
+
+  editDialogVisible = signal(false);
+  editingStore      = signal<AvailableStore | null>(null);
+  editSubmitting    = signal(false);
+  editNameControl   = new FormControl('', Validators.required);
+  editAddressForm   = new FormGroup({
+    addressLine1: new FormControl(''),
+    city:         new FormControl(''),
+    state:        new FormControl(''),
+    zipCode:      new FormControl(''),
+  });
 
   storeTypeOptions = Object.entries(STORE_TYPE_METADATA).map(([value, meta]) => ({
     value: value as StoreType,
@@ -125,6 +138,55 @@ export class ConfigureStores implements OnInit {
       error: (err) => {
         this.messageService.add({ severity: 'error', summary: 'Error', detail: err.message ?? 'Failed to create store' });
         this.submitting.set(false);
+      },
+    });
+  }
+
+  openEditDialog(store: AvailableStore): void {
+    this.editingStore.set(store);
+    this.editNameControl.setValue(store.name);
+    this.editAddressForm.setValue({
+      addressLine1: store.address?.addressLine1 ?? '',
+      city:         store.address?.city ?? '',
+      state:        store.address?.state ?? '',
+      zipCode:      store.address?.zipCode ?? '',
+    });
+    this.editNameControl.markAsUntouched();
+    this.editAddressForm.markAsUntouched();
+    this.editDialogVisible.set(true);
+  }
+
+  submitEditForm(): void {
+    this.editNameControl.markAsTouched();
+    if (this.editNameControl.invalid) return;
+    const store = this.editingStore();
+    if (!store) return;
+
+    this.editSubmitting.set(true);
+    const addr = this.editAddressForm.getRawValue();
+    const hasAddress = !!(addr.addressLine1?.trim() || addr.city?.trim());
+    const payload: UpdateStoreRequest = {
+      name: this.editNameControl.value!.trim(),
+      ...(hasAddress && {
+        address: {
+          addressLine1: addr.addressLine1?.trim() ?? '',
+          city:         addr.city?.trim() ?? '',
+          state:        addr.state?.trim() ?? '',
+          zipCode:      addr.zipCode?.trim() || undefined,
+        },
+      }),
+    };
+
+    this.adminService.updateStore(store.instanceId, payload).subscribe({
+      next: (res) => {
+        this.stores.update(s => s.map(st => st.instanceId === res.store.instanceId ? res.store : st));
+        this.messageService.add({ severity: 'success', summary: 'Store updated', detail: res.store.name });
+        this.editDialogVisible.set(false);
+        this.editSubmitting.set(false);
+      },
+      error: (err) => {
+        this.messageService.add({ severity: 'error', summary: 'Error', detail: err.message ?? 'Failed to update store' });
+        this.editSubmitting.set(false);
       },
     });
   }

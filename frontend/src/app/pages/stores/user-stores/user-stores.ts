@@ -39,7 +39,7 @@ import { SkeletonModule } from 'primeng/skeleton';
         @if (loading() && stores().length === 0) {
         <div class="store-grid">
           @for (_ of skeletonItems; track $index) {                                                                      
-            <p-skeleton height="150px" borderRadius="var(--card-border-radius, 12px)" />                                 
+            <p-skeleton height="170px" borderRadius="var(--card-border-radius, 12px)" />                                 
           }        
         </div>
         } @else if (error()) {

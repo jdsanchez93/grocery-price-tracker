@@ -20,6 +20,7 @@ function makeMockAdminService() {
   return {
     getAllStores: vi.fn().mockReturnValue(of([])),
     createStore: vi.fn().mockReturnValue(of({ success: true, store: makeStore() })),
+    updateStore: vi.fn().mockReturnValue(of({ success: true, store: makeStore() })),
   };
 }
 
@@ -326,6 +327,186 @@ describe('ConfigureStores', () => {
       fillForm();
       component.submitForm();
       expect(component.selectedType()).toBe('kingsoopers');
+    });
+  });
+
+  // --- openEditDialog ---
+
+  describe('openEditDialog', () => {
+    it('sets editingStore to the given store', () => {
+      const store = makeStore();
+      component.openEditDialog(store);
+      expect(component.editingStore()).toBe(store);
+    });
+
+    it('sets editDialogVisible to true', () => {
+      component.openEditDialog(makeStore());
+      expect(component.editDialogVisible()).toBe(true);
+    });
+
+    it('pre-populates editNameControl with the store name', () => {
+      component.openEditDialog(makeStore({ name: 'Pearl St' }));
+      expect(component.editNameControl.value).toBe('Pearl St');
+    });
+
+    it('pre-populates editAddressForm when store has an address', () => {
+      const store = makeStore({
+        address: { addressLine1: '123 Main St', city: 'Denver', state: 'CO', zipCode: '80201' },
+      });
+      component.openEditDialog(store);
+      expect(component.editAddressForm.getRawValue()).toEqual({
+        addressLine1: '123 Main St',
+        city: 'Denver',
+        state: 'CO',
+        zipCode: '80201',
+      });
+    });
+
+    it('fills address fields with empty strings when store has no address', () => {
+      component.openEditDialog(makeStore({ address: undefined }));
+      expect(component.editAddressForm.getRawValue()).toEqual({
+        addressLine1: '',
+        city: '',
+        state: '',
+        zipCode: '',
+      });
+    });
+
+    it('resets touched state so validation errors are not shown on open', () => {
+      component.editNameControl.markAsTouched();
+      component.editAddressForm.markAllAsTouched();
+      component.openEditDialog(makeStore());
+      expect(component.editNameControl.touched).toBe(false);
+      expect(component.editAddressForm.touched).toBe(false);
+    });
+  });
+
+  // --- submitEditForm: validation guards ---
+
+  describe('submitEditForm — validation guards', () => {
+    it('does not call updateStore when editNameControl is empty', () => {
+      component.openEditDialog(makeStore());
+      component.editNameControl.setValue('');
+      component.submitEditForm();
+      expect(mockAdminService.updateStore).not.toHaveBeenCalled();
+    });
+
+    it('marks editNameControl as touched on submit attempt', () => {
+      component.openEditDialog(makeStore());
+      component.editNameControl.setValue('');
+      component.submitEditForm();
+      expect(component.editNameControl.touched).toBe(true);
+    });
+  });
+
+  // --- submitEditForm: success ---
+
+  describe('submitEditForm — success', () => {
+    function openStore(overrides: Partial<AvailableStore> = {}) {
+      component.openEditDialog(makeStore({ name: 'KS Pearl', ...overrides }));
+    }
+
+    it('calls updateStore with trimmed name and no address when address fields are empty', () => {
+      openStore();
+      component.editAddressForm.setValue({ addressLine1: '', city: '', state: '', zipCode: '' });
+      component.submitEditForm();
+      expect(mockAdminService.updateStore).toHaveBeenCalledWith('kingsoopers:abc', {
+        name: 'KS Pearl',
+      });
+    });
+
+    it('calls updateStore with address when addressLine1 is filled', () => {
+      openStore();
+      component.editAddressForm.setValue({ addressLine1: '123 Main St', city: 'Denver', state: 'CO', zipCode: '80201' });
+      component.submitEditForm();
+      const payload = mockAdminService.updateStore.mock.calls[0][1];
+      expect(payload.address).toEqual({
+        addressLine1: '123 Main St',
+        city: 'Denver',
+        state: 'CO',
+        zipCode: '80201',
+      });
+    });
+
+    it('includes address when only city is filled', () => {
+      openStore();
+      component.editAddressForm.setValue({ addressLine1: '', city: 'Denver', state: 'CO', zipCode: '' });
+      component.submitEditForm();
+      const payload = mockAdminService.updateStore.mock.calls[0][1];
+      expect(payload.address).toBeDefined();
+    });
+
+    it('omits zipCode from address when it is empty', () => {
+      openStore();
+      component.editAddressForm.setValue({ addressLine1: '123 Main St', city: 'Denver', state: 'CO', zipCode: '' });
+      component.submitEditForm();
+      const payload = mockAdminService.updateStore.mock.calls[0][1];
+      expect(payload.address?.zipCode).toBeUndefined();
+    });
+
+    it('updates the matching store in-place in the stores signal', () => {
+      const original = makeStore({ instanceId: 'kingsoopers:abc', name: 'Old Name' });
+      const other = makeStore({ instanceId: 'safeway:xyz', name: 'Other Store' });
+      const updated = makeStore({ instanceId: 'kingsoopers:abc', name: 'New Name' });
+      component.stores.set([original, other]);
+      mockAdminService.updateStore.mockReturnValue(of({ success: true, store: updated }));
+
+      component.openEditDialog(original);
+      component.submitEditForm();
+
+      const stores = component.stores();
+      expect(stores[0]).toBe(updated);
+      expect(stores[1]).toBe(other);
+      expect(stores).toHaveLength(2);
+    });
+
+    it('shows success toast with the updated store name', () => {
+      const updated = makeStore({ name: 'New Name' });
+      mockAdminService.updateStore.mockReturnValue(of({ success: true, store: updated }));
+      component.openEditDialog(makeStore());
+      component.submitEditForm();
+      expect(messageServiceAdd).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'success', summary: 'Store updated', detail: 'New Name' }),
+      );
+    });
+
+    it('closes the dialog on success', () => {
+      component.openEditDialog(makeStore());
+      component.submitEditForm();
+      expect(component.editDialogVisible()).toBe(false);
+    });
+
+    it('sets editSubmitting to false after success', () => {
+      component.openEditDialog(makeStore());
+      component.submitEditForm();
+      expect(component.editSubmitting()).toBe(false);
+    });
+  });
+
+  // --- submitEditForm: error ---
+
+  describe('submitEditForm — error', () => {
+    it('shows error toast', () => {
+      mockAdminService.updateStore.mockReturnValue(throwError(() => new Error('Network error')));
+      component.openEditDialog(makeStore());
+      component.submitEditForm();
+      expect(messageServiceAdd).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'error', summary: 'Error', detail: 'Network error' }),
+      );
+    });
+
+    it('does not close the dialog on error', () => {
+      mockAdminService.updateStore.mockReturnValue(throwError(() => new Error('fail')));
+      component.openEditDialog(makeStore());
+      component.submitEditForm();
+      expect(component.editDialogVisible()).toBe(true);
+    });
+
+    it('sets editSubmitting to false after error', () => {
+      mockAdminService.updateStore.mockReturnValue(throwError(() => new Error('fail')));
+      component.openEditDialog(makeStore());
+      component.submitEditForm();
+      expect(component.editSubmitting()).toBe(false);
     });
   });
 });

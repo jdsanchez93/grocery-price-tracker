@@ -19,6 +19,16 @@ export interface CreateStoreResponse {
   store: AvailableStore;
 }
 
+export interface UpdateStoreRequest {
+  name: string;
+  address?: StoreAddress;
+}
+
+export interface UpdateStoreResponse {
+  success: boolean;
+  store: AvailableStore;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -39,5 +49,9 @@ export class AdminService {
 
   createStore(data: CreateStoreRequest): Observable<CreateStoreResponse> {
     return this.http.post<CreateStoreResponse>(`${environment.apiUrl}/admin/stores`, data);
+  }
+
+  updateStore(instanceId: string, data: UpdateStoreRequest): Observable<UpdateStoreResponse> {
+    return this.http.patch<UpdateStoreResponse>(`${environment.apiUrl}/admin/stores/${instanceId}`, data);
   }
 }

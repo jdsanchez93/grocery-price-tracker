@@ -26,6 +26,7 @@ import {
   getCircular,
   deleteCircularAndDeals,
   getAllStores,
+  updateStoreInstance,
 } from './db/client';
 import {
   getCurrentWeekId,
@@ -125,6 +126,27 @@ export function createApp() {
       success: true,
       store: instance,
     });
+  });
+
+  // Update a store instance (name and/or address)
+  app.patch('/admin/stores/:instanceId', requirePermission('stores:write'), async (c) => {
+    const instanceId = c.req.param('instanceId');
+    const body = await c.req.json<{ name: string; address?: StoreAddress }>();
+
+    if (!body.name || !body.name.trim()) {
+      return c.json({ error: 'name is required' }, 400);
+    }
+
+    const store = await updateStoreInstance(instanceId, {
+      name: body.name.trim(),
+      address: body.address,
+    });
+
+    if (!store) {
+      return c.json({ error: 'Store not found' }, 404);
+    }
+
+    return c.json({ success: true, store });
   });
 
   // Get scrape status for store(s)

@@ -1,4 +1,4 @@
-import { DynamoDBClient, ScanCommand } from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient, ScanCommand, ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
   PutCommand,
@@ -6,6 +6,7 @@ import {
   QueryCommand,
   DeleteCommand,
   BatchWriteCommand,
+  UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 import * as crypto from 'crypto';
 import {
@@ -240,6 +241,45 @@ export async function writeStoreInstance(
   }));
 
   return item;
+}
+
+export async function updateStoreInstance(
+  instanceId: string,
+  updates: { name: string; address?: StoreAddress }
+): Promise<StoreInstanceItem | null> {
+  const now = new Date().toISOString();
+
+  const hasAddress = !!updates.address;
+  const updateExpression = hasAddress
+    ? 'SET #name = :name, updatedAt = :now, address = :addr'
+    : 'SET #name = :name, updatedAt = :now REMOVE address';
+
+  const expressionAttributeValues: Record<string, unknown> = {
+    ':name': updates.name,
+    ':now': now,
+    ...(hasAddress && { ':addr': updates.address }),
+  };
+
+  try {
+    const result = await docClient.send(new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: {
+        PK: Keys.storeInstance.pk(instanceId),
+        SK: Keys.storeInstance.sk(),
+      },
+      UpdateExpression: updateExpression,
+      ExpressionAttributeNames: { '#name': 'name' },
+      ExpressionAttributeValues: expressionAttributeValues,
+      ConditionExpression: 'attribute_exists(PK)',
+      ReturnValues: 'ALL_NEW',
+    }));
+    return result.Attributes as StoreInstanceItem;
+  } catch (err) {
+    if (err instanceof ConditionalCheckFailedException) {
+      return null;
+    }
+    throw err;
+  }
 }
 
 export async function getOrCreateStoreInstance(
