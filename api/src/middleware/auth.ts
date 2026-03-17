@@ -1,5 +1,6 @@
 import { Context, MiddlewareHandler } from 'hono';
 import { createRemoteJWKSet, jwtVerify, JWTPayload } from 'jose';
+import { logger } from '../logger';
 
 // Auth0 configuration from environment
 const AUTH0_DOMAIN = process.env.AUTH0_DOMAIN || '';
@@ -50,7 +51,7 @@ async function verifyToken(token: string): Promise<AuthUser | null> {
   try {
     const jwksSet = getJWKS();
     if (!jwksSet) {
-      console.error('JWKS not configured - AUTH0_DOMAIN not set');
+      logger.error('JWKS not configured — AUTH0_DOMAIN not set');
       return null;
     }
 
@@ -75,7 +76,7 @@ async function verifyToken(token: string): Promise<AuthUser | null> {
       permissions,
     };
   } catch (error) {
-    console.error('JWT verification failed:', error);
+    logger.warn({ err: error }, 'JWT verification failed');
     return null;
   }
 }
