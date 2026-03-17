@@ -1,4 +1,6 @@
 import { Hono } from 'hono';
+import type { LambdaContext, LambdaEvent, ApiGatewayRequestContextV2 } from 'hono/aws-lambda';
+import { logger } from './logger';
 import {
   fetchWeeklyDeals,
   fetchAndPersistWeeklyDeals,
@@ -38,8 +40,22 @@ import {
 } from './types/database';
 
 
+type LambdaBindings = {
+  event: LambdaEvent;
+  requestContext: ApiGatewayRequestContextV2;
+  lambdaContext: LambdaContext;
+};
+
 export function createApp() {
-  const app = new Hono().basePath('/api');
+  const app = new Hono<{ Bindings: LambdaBindings }>().basePath('/api');
+
+  app.use('/*', async (c, next) => {
+    const requestId = c.env?.lambdaContext?.awsRequestId ?? 'local';
+    const start = Date.now();
+    logger.info({ requestId, method: c.req.method, path: c.req.path }, 'request start');
+    await next();
+    logger.info({ requestId, method: c.req.method, path: c.req.path, status: c.res.status, duration_ms: Date.now() - start }, 'request end');
+  });
 
   app.use('/*', authMiddleware({ required: true }));
 

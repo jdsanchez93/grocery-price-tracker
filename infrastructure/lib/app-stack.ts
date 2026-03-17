@@ -36,8 +36,8 @@ export class AppStack extends cdk.Stack {
       entry: path.join(__dirname, '../../api/src/lambda.ts'),
       handler: 'handler',
       runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
-      memorySize: 512,
-      timeout: cdk.Duration.seconds(30),
+      memorySize: 1536,
+      timeout: cdk.Duration.seconds(60),
       bundling: {
         format: cdk.aws_lambda_nodejs.OutputFormat.ESM,
         minify: true,
@@ -52,6 +52,7 @@ export class AppStack extends cdk.Stack {
         AUTH0_DOMAIN: props.auth0Domain || '',
         AUTH0_AUDIENCE: props.auth0Audience || '',
         KROGER_SCOPE: props.krogerScope || '',
+        LOG_LEVEL: 'info',
       },
     });
 

@@ -48,10 +48,10 @@ describe('AppStack', () => {
     });
   });
 
-  test('Lambda has 512 MB memory and 30s timeout', () => {
+  test('Lambda has 1536 MB memory and 60s timeout', () => {
     template.hasResourceProperties('AWS::Lambda::Function', {
-      MemorySize: 512,
-      Timeout: 30,
+      MemorySize: 1536,
+      Timeout: 60,
     });
   });
 

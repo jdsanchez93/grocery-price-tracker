@@ -2,6 +2,7 @@ import { writeDeals, writeCircular } from '../db/client';
 import { getCurrentWeekId, KingSoopersIdentifiers, PriceVariant } from '../types/database';
 import { findCanonicalProductId } from './products';
 import { getKrogerCreds } from '../config';
+import { logger } from '../logger';
 
 export type { PriceVariant } from '../types/database';
 
@@ -268,6 +269,7 @@ export function _resetTokenCache() {
 
 async function getKrogerToken(): Promise<string | null> {
   if (cachedToken && Date.now() < cachedToken.expiresAt) {
+    logger.debug('Using cached Kroger OAuth token');
     return cachedToken.token;
   }
 
@@ -289,6 +291,7 @@ async function getKrogerToken(): Promise<string | null> {
     token: json.access_token,
     expiresAt: Date.now() + (json.expires_in - 60) * 1000, // refresh 60s early
   };
+  logger.info({ expiresIn: json.expires_in }, 'Fetched fresh Kroger OAuth token');
   return cachedToken.token;
 }
 
@@ -313,9 +316,9 @@ export async function _getKrogerPriceVariants(
     },
   });
   if (!response.ok) {
-    console.error(`[Kroger API] Error response: ${response.status} - ${response.statusText} - ${url.toString()}`);
+    logger.error({ status: response.status, url }, 'Kroger API error response');
     return {};
-  };
+  }
 
   const json: ProductPriceResponse = await response.json();
   const pricesByUpc: Record<string, PriceVariant> = {};
@@ -349,7 +352,7 @@ export async function _getKrogerPriceVariants(
   const start = json.meta?.pagination?.start || 0;
   const limit = json.meta?.pagination?.limit || 50;
   if (json.meta?.pagination?.total === undefined) {
-    console.warn(`[Kroger API] Pagination has no total: ${url.toString()}`)
+    logger.warn({ url }, 'Kroger API pagination missing total');
   }
   const total = json.meta?.pagination?.total || 0;
 
@@ -413,7 +416,7 @@ export async function _fetchProductPricesByTerm(
   const pricesByUpc: Record<string, PriceVariant> = {};
   const termResults = await Promise.all(searchTerms.map(term =>
     _getKrogerPriceVariants({ ...baseParams, 'filter.term': term })
-      .then(ret => { console.log('term result', term, Object.keys(ret).length); return ret; })
+      .then(ret => { logger.debug({ term, count: Object.keys(ret).length }, 'term search result'); return ret; })
   ));
   termResults.forEach(ret => Object.assign(pricesByUpc, ret));
 
@@ -438,11 +441,13 @@ async function resolveBogoPrices(
   }
   if (bogoIndices.length === 0) return;
 
+  logger.info({ bogoCount: bogoIndices.length }, 'Starting BOGO price resolution');
+  const t = Date.now();
   await Promise.all(bogoIndices.map(async (idx) => {
       const ad = ads[idx];
       const name = ad.mainlineCopy || 'unknown';
       if (!ad.id) {
-        console.warn(`[BOGO] Deal "${name}" has no id, skipping price resolution`);
+        logger.warn({ name }, 'BOGO deal has no id, skipping');
         return;
       }
       try {
@@ -450,7 +455,7 @@ async function resolveBogoPrices(
         const upcs = dealDetails.data?.shoppableWeeklyDealDetails?.upcs?.map(u => u.upc) ?? [];
 
         if (upcs.length === 0) {
-          console.warn(`[BOGO] Deal "${name}" (${ad.id}): no UPCs returned from detail endpoint`);
+          logger.warn({ name, dealId: ad.id }, 'BOGO deal detail returned no UPCs');
           return;
         }
         let pricesByUpc = await _fetchProductPrices(upcs, headers["x-facility-id"]);
@@ -468,10 +473,10 @@ async function resolveBogoPrices(
           return true;
         }).sort((a, b) => a.price - b.price);
 
-        console.log(`[BOGO] Deal "${name}" (${ad.id}): resolved ${variants.length} price variants`);
+        logger.info({ name, dealId: ad.id, variantCount: variants.length }, 'BOGO price variants resolved');
 
         if (variants.length === 0) {
-          console.warn(`[BOGO] Deal "${name}" (${ad.id}): no prices found`);
+          logger.warn({ name, dealId: ad.id }, 'BOGO no prices found');
           return;
         }
         variants.sort((a, b) => a.price - b.price);
@@ -487,9 +492,10 @@ async function resolveBogoPrices(
         deal.priceVariants = variants;
         deals[idx] = deal;
       } catch (err) {
-        console.warn(`[BOGO] Deal "${name}" (${ad.id}): price resolution failed`, err);
+        logger.warn({ err, name, dealId: ad.id }, 'BOGO price resolution failed');
       }
   }));
+  logger.info({ duration_ms: Date.now() - t }, 'BOGO Promise.all settled');
 }
 
 interface KingSoopersApiResponse {
@@ -537,7 +543,9 @@ export async function fetchAndPersistWeeklyDeals(
   weekId: string = getCurrentWeekId(),
   circularDates?: { startDate: string; endDate: string }
 ): Promise<{ deals: StandardDeal[]; persisted: boolean }> {
+  const t = Date.now();
   const deals = await fetchWeeklyDeals(circularId, identifiers);
+  logger.info({ duration_ms: Date.now() - t, dealCount: deals.length, storeInstanceId }, 'fetchWeeklyDeals complete');
 
   if (deals.length === 0) {
     return { deals, persisted: false };
