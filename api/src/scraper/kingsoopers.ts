@@ -374,18 +374,16 @@ export async function _fetchProductPrices(
 
   const pricesByUpc: Record<string, PriceVariant> = {};
 
-  // Batch UPC lookups in groups of 10
+  // Batch UPC lookups in groups of 10, all batches in parallel
   const PRODUCT_BATCH_SIZE = 10;
+  const batches: string[][] = [];
   for (let i = 0; i < upcs.length; i += PRODUCT_BATCH_SIZE) {
-    const batch = upcs.slice(i, i + PRODUCT_BATCH_SIZE);
-
-    const queryParams = {
-      'filter.productId': batch.join(','),
-      'filter.locationId': locationId
-    }
-    const ret = await _getKrogerPriceVariants(queryParams);
-    Object.assign(pricesByUpc, ret);
+    batches.push(upcs.slice(i, i + PRODUCT_BATCH_SIZE));
   }
+  const results = await Promise.all(batches.map(batch =>
+    _getKrogerPriceVariants({ 'filter.productId': batch.join(','), 'filter.locationId': locationId })
+  ));
+  results.forEach(ret => Object.assign(pricesByUpc, ret));
 
   return pricesByUpc;
 }
@@ -413,11 +411,11 @@ export async function _fetchProductPricesByTerm(
   };
 
   const pricesByUpc: Record<string, PriceVariant> = {};
-  for (const term of searchTerms) {
-    const ret = await _getKrogerPriceVariants({ ...baseParams, 'filter.term': term });
-    console.log('term result',term, Object.keys(ret).length)
-    Object.assign(pricesByUpc, ret);
-  }
+  const termResults = await Promise.all(searchTerms.map(term =>
+    _getKrogerPriceVariants({ ...baseParams, 'filter.term': term })
+      .then(ret => { console.log('term result', term, Object.keys(ret).length); return ret; })
+  ));
+  termResults.forEach(ret => Object.assign(pricesByUpc, ret));
 
   return Object.fromEntries(
     Object.entries(pricesByUpc).filter(([upc]) => upcSet.has(upc))
@@ -440,7 +438,7 @@ async function resolveBogoPrices(
   }
   if (bogoIndices.length === 0) return;
 
-  const BATCH_SIZE = 5;
+  const BATCH_SIZE = 10;
   for (let i = 0; i < bogoIndices.length; i += BATCH_SIZE) {
     const batch = bogoIndices.slice(i, i + BATCH_SIZE);
     await Promise.all(batch.map(async (idx) => {
