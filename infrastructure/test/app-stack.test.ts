@@ -3,12 +3,36 @@ import { Match, Template } from 'aws-cdk-lib/assertions';
 import { StorageStack } from '../lib/storage-stack';
 import { AppStack } from '../lib/app-stack';
 
+// Mock NodejsFunction to avoid esbuild bundling — infrastructure tests should not
+// depend on api/node_modules being installed.
+jest.mock('aws-cdk-lib/aws-lambda-nodejs', () => {
+  const actualCdk = jest.requireActual('aws-cdk-lib') as typeof import('aws-cdk-lib');
+
+  class MockNodejsFunction extends actualCdk.aws_lambda.Function {
+    constructor(scope: any, id: string, props: any) {
+      super(scope, id, {
+        runtime: props.runtime ?? actualCdk.aws_lambda.Runtime.NODEJS_22_X,
+        handler: props.handler ?? 'index.handler',
+        code: actualCdk.aws_lambda.Code.fromInline('// test stub'),
+        memorySize: props.memorySize,
+        timeout: props.timeout,
+        environment: props.environment,
+      });
+    }
+  }
+
+  return {
+    NodejsFunction: MockNodejsFunction,
+    // Re-export enums referenced via cdk.aws_lambda_nodejs.* in app-stack.ts
+    OutputFormat: { CJS: 'cjs', ESM: 'esm' },
+  };
+});
+
 describe('AppStack', () => {
   let template: Template;
 
   beforeAll(() => {
-    // Skip asset bundling so tests don't require esbuild to run
-    const app = new cdk.App({ context: { '@aws-cdk/core:bundlingStacks': [] } });
+    const app = new cdk.App();
     const storageStack = new StorageStack(app, 'TestStorage', { stage: 'test' });
     const stack = new AppStack(app, 'TestAppStack', {
       dealsTable: storageStack.dealsTable,
