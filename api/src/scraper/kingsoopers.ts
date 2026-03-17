@@ -438,10 +438,7 @@ async function resolveBogoPrices(
   }
   if (bogoIndices.length === 0) return;
 
-  const BATCH_SIZE = 10;
-  for (let i = 0; i < bogoIndices.length; i += BATCH_SIZE) {
-    const batch = bogoIndices.slice(i, i + BATCH_SIZE);
-    await Promise.all(batch.map(async (idx) => {
+  await Promise.all(bogoIndices.map(async (idx) => {
       const ad = ads[idx];
       const name = ad.mainlineCopy || 'unknown';
       if (!ad.id) {
@@ -492,8 +489,7 @@ async function resolveBogoPrices(
       } catch (err) {
         console.warn(`[BOGO] Deal "${name}" (${ad.id}): price resolution failed`, err);
       }
-    }));
-  }
+  }));
 }
 
 interface KingSoopersApiResponse {
