@@ -1,7 +1,13 @@
 import { writeDeals, writeCircular } from '../db/client';
 import { getCurrentWeekId, SafewayIdentifiers } from '../types/database';
 import { findCanonicalProductId } from './products';
-import { StandardDeal, WeeklyAdMetadata } from './kingsoopers';
+import { StandardDeal } from './kingsoopers';
+
+export interface WeeklyAdMetadata {
+  circularId: string;
+  startDate: string;
+  endDate: string;
+}
 
 // Flipp API types
 interface FlippPublication {

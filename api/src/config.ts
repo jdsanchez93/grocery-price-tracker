@@ -23,3 +23,24 @@ export async function getKrogerCreds(): Promise<{ clientId: string; clientSecret
   };
   return krogerCreds;
 }
+
+let scraperWorkerConfig: { url: string; apiKey: string } | null = null;
+
+export async function getScraperWorkerConfig(): Promise<{ url: string; apiKey: string }> {
+  if (scraperWorkerConfig) return scraperWorkerConfig;
+  const client = getSSMClient();
+  const [urlRes, keyRes] = await Promise.all([
+    client.send(new GetParameterCommand({ Name: `/grocery/${stage}/scraper-worker/url` })),
+    client.send(new GetParameterCommand({ Name: `/grocery/${stage}/scraper-worker/api-key`, WithDecryption: true })),
+  ]);
+  scraperWorkerConfig = {
+    url: urlRes.Parameter!.Value!,
+    apiKey: keyRes.Parameter!.Value!,
+  };
+  return scraperWorkerConfig;
+}
+
+/** @internal Reset cached scraper worker config (for testing) */
+export function _resetScraperWorkerConfig() {
+  scraperWorkerConfig = null;
+}

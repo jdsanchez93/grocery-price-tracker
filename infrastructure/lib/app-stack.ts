@@ -36,7 +36,7 @@ export class AppStack extends cdk.Stack {
       entry: path.join(__dirname, '../../api/src/lambda.ts'),
       handler: 'handler',
       runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
-      memorySize: 1536,
+      memorySize: 512,
       timeout: cdk.Duration.seconds(60),
       bundling: {
         format: cdk.aws_lambda_nodejs.OutputFormat.ESM,
@@ -45,6 +45,7 @@ export class AppStack extends cdk.Stack {
         target: 'node22',
         forceDockerBundling: false,
         externalModules: ['@aws-sdk/*'],
+        banner: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
       },
       environment: {
         STAGE: 'prod',
@@ -63,6 +64,8 @@ export class AppStack extends cdk.Stack {
       resources: [
         `arn:aws:ssm:${this.region}:${this.account}:parameter/grocery/prod/kroger/client-id`,
         `arn:aws:ssm:${this.region}:${this.account}:parameter/grocery/prod/kroger/client-secret`,
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/grocery/prod/scraper-worker/url`,
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/grocery/prod/scraper-worker/api-key`,
       ],
     }));
 
