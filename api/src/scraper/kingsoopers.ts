@@ -442,7 +442,7 @@ export async function fetchWeeklyDeals(
   identifiers: KingSoopersIdentifiers
 ): Promise<{ deals: StandardDeal[]; circularId: string; circularDates: { startDate: string; endDate: string } }> {
   const { deals, bogoData, circularId, circularDates } = await callScraperWorker(identifiers);
-  await _resolveBogoFromWorkerData(deals, bogoData, identifiers.facilityId);
+  await _resolveBogoFromWorkerData(deals, bogoData, identifiers.storeId);
   return { deals, circularId, circularDates };
 }
 
