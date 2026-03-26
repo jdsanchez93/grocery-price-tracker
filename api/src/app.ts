@@ -4,8 +4,6 @@ import { logger } from './logger';
 import {
   fetchWeeklyDeals,
   fetchAndPersistWeeklyDeals,
-  fetchCirculars,
-  extractWeeklyAdMetadata,
 } from './scraper/kingsoopers';
 import {
   fetchPublications as fetchSafewayPublications,
@@ -188,57 +186,6 @@ export function createApp() {
     return c.json(status);
   });
 
-  // Fetch available circulars for a store instance
-  app.get('/admin/scrape/circulars', requirePermission('scraper:run'), async (c) => {
-    const instanceId = c.req.query('instanceId');
-    if (!instanceId) {
-      return c.json({ error: 'instanceId is required' }, 400);
-    }
-
-    const storeInstance = await getStoreInstance(instanceId);
-    if (!storeInstance) {
-      return c.json({ error: 'Store instance not found' }, 404);
-    }
-
-    try {
-      switch (storeInstance.identifiers.type) {
-        case 'kingsoopers': {
-          const result = await fetchCirculars(storeInstance.identifiers);
-          return c.json({
-            weeklyAdCircularId: result.weeklyAdCircularId,
-            circulars: result.circulars.map((circ) => ({
-              id: circ.id,
-              name: circ.eventName,
-              startDate: circ.eventStartDate,
-              endDate: circ.eventEndDate,
-            })),
-          });
-        }
-        case 'safeway': {
-          const result = await fetchSafewayPublications(storeInstance.identifiers);
-          return c.json({
-            weeklyAdCircularId: result.weeklyAdPublicationId?.toString() || null,
-            circulars: result.publications.map((pub) => ({
-              id: pub.id.toString(),
-              name: pub.external_display_name,
-              startDate: pub.valid_from,
-              endDate: pub.valid_to,
-            })),
-          });
-        }
-        case 'sprouts':
-          return c.json({ error: 'Sprouts scraping not yet implemented' }, 501);
-        default: {
-          const _exhaustive: never = storeInstance.identifiers;
-          return c.json({ error: 'Unknown store type' }, 400);
-        }
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return c.json({ error: message }, 500);
-    }
-  });
-
   // Preview deals for a store instance (no persist)
   app.get('/admin/scrape/deals', requirePermission('scraper:run'), async (c) => {
     const instanceId = c.req.query('instanceId');
@@ -256,11 +203,8 @@ export function createApp() {
     try {
       switch (storeInstance.identifiers.type) {
         case 'kingsoopers': {
-          if (!circularId) {
-            return c.json({ error: 'circularId is required for King Soopers' }, 400);
-          }
-          const deals = await fetchWeeklyDeals(circularId, storeInstance.identifiers);
-          return c.json({ deals, count: deals.length });
+          const result = await fetchWeeklyDeals(storeInstance.identifiers);
+          return c.json({ deals: result.deals, count: result.deals.length, circularId: result.circularId });
         }
         case 'safeway': {
           let publicationId: string;
@@ -305,18 +249,87 @@ export function createApp() {
       return c.json({ error: 'Store instance not found' }, 404);
     }
 
-    // Fetch circulars and extract weekly ad metadata (chain-specific)
-    let weeklyAdMeta;
     switch (storeInstance.identifiers.type) {
       case 'kingsoopers': {
-        const { circulars } = await fetchCirculars(storeInstance.identifiers);
-        weeklyAdMeta = extractWeeklyAdMetadata(circulars);
-        break;
+        const ksResult = await fetchAndPersistWeeklyDeals(
+          storeInstance.identifiers, storeInstance.instanceId, { force }
+        );
+        if (ksResult.alreadyScraped) {
+          return c.json({
+            success: true,
+            alreadyScraped: true,
+            weekId: ksResult.weekId,
+            circularId: ksResult.circularId,
+            storeInstanceId: storeInstance.instanceId,
+            existingDealCount: ksResult.existingDealCount,
+          });
+        }
+        return c.json({
+          success: true,
+          alreadyScraped: false,
+          forced: force,
+          ...(force && (ksResult.deletedCount ?? 0) > 0 && { deletedCount: ksResult.deletedCount }),
+          weekId: ksResult.weekId,
+          circularId: ksResult.circularId,
+          storeInstanceId: storeInstance.instanceId,
+          dealCount: ksResult.deals.length,
+          persisted: ksResult.persisted,
+          dates: {
+            startDate: ksResult.circularDates.startDate,
+            endDate: ksResult.circularDates.endDate,
+          },
+        });
       }
       case 'safeway': {
         const { publications } = await fetchSafewayPublications(storeInstance.identifiers);
-        weeklyAdMeta = extractSafewayWeeklyAdMetadata(publications);
-        break;
+        const weeklyAdMeta = extractSafewayWeeklyAdMetadata(publications);
+
+        if (!weeklyAdMeta) {
+          return c.json({ error: 'No weekly ad circular found' }, 404);
+        }
+
+        const localDate = new Date(weeklyAdMeta.startDate.split('T')[0] + 'T12:00:00');
+        const weekId = getWeekIdForDate(localDate);
+
+        const existingCircular = await getCircular(storeInstance.instanceId, weekId);
+
+        if (!force && existingCircular && existingCircular.circularId === weeklyAdMeta.circularId) {
+          return c.json({
+            success: true,
+            alreadyScraped: true,
+            weekId,
+            circularId: weeklyAdMeta.circularId,
+            storeInstanceId: storeInstance.instanceId,
+            existingDealCount: existingCircular.dealCount,
+          });
+        }
+
+        let deletedCount = 0;
+        if (force && existingCircular) {
+          const deleteResult = await deleteCircularAndDeals(storeInstance.instanceId, weekId);
+          deletedCount = deleteResult.deletedCount;
+        }
+
+        const result = await fetchAndPersistSafewayWeeklyDeals(
+          weeklyAdMeta.circularId, storeInstance.instanceId,
+          weekId, { startDate: weeklyAdMeta.startDate, endDate: weeklyAdMeta.endDate }
+        );
+
+        return c.json({
+          success: true,
+          alreadyScraped: false,
+          forced: force,
+          ...(force && deletedCount > 0 && { deletedCount }),
+          weekId,
+          circularId: weeklyAdMeta.circularId,
+          storeInstanceId: storeInstance.instanceId,
+          dealCount: result.deals.length,
+          persisted: result.persisted,
+          dates: {
+            startDate: weeklyAdMeta.startDate,
+            endDate: weeklyAdMeta.endDate,
+          },
+        });
       }
       case 'sprouts':
         return c.json({ error: 'Sprouts scraping not yet implemented' }, 501);
@@ -325,67 +338,6 @@ export function createApp() {
         return c.json({ error: 'Unknown store type' }, 400);
       }
     }
-
-    if (!weeklyAdMeta) {
-      return c.json({ error: 'No weekly ad circular found' }, 404);
-    }
-
-    const localDate = new Date(weeklyAdMeta.startDate.split('T')[0] + 'T12:00:00');
-    const weekId = getWeekIdForDate(localDate);
-
-    // Check for existing circular (deduplication)
-    const existingCircular = await getCircular(storeInstance.instanceId, weekId);
-
-    if (!force && existingCircular && existingCircular.circularId === weeklyAdMeta.circularId) {
-      return c.json({
-        success: true,
-        alreadyScraped: true,
-        weekId,
-        circularId: weeklyAdMeta.circularId,
-        storeInstanceId: storeInstance.instanceId,
-        existingDealCount: existingCircular.dealCount,
-      });
-    }
-
-    // If force=true, delete existing circular and deals first
-    let deletedCount = 0;
-    if (force && existingCircular) {
-      const deleteResult = await deleteCircularAndDeals(storeInstance.instanceId, weekId);
-      deletedCount = deleteResult.deletedCount;
-    }
-
-    // Scrape and persist deals (chain-specific)
-    let result;
-    switch (storeInstance.identifiers.type) {
-      case 'kingsoopers':
-        result = await fetchAndPersistWeeklyDeals(
-          weeklyAdMeta.circularId, storeInstance.identifiers, storeInstance.instanceId,
-          weekId, { startDate: weeklyAdMeta.startDate, endDate: weeklyAdMeta.endDate }
-        );
-        break;
-      case 'safeway':
-        result = await fetchAndPersistSafewayWeeklyDeals(
-          weeklyAdMeta.circularId, storeInstance.instanceId,
-          weekId, { startDate: weeklyAdMeta.startDate, endDate: weeklyAdMeta.endDate }
-        );
-        break;
-    }
-
-    return c.json({
-      success: true,
-      alreadyScraped: false,
-      forced: force,
-      ...(force && deletedCount > 0 && { deletedCount }),
-      weekId,
-      circularId: weeklyAdMeta.circularId,
-      storeInstanceId: storeInstance.instanceId,
-      dealCount: result.deals.length,
-      persisted: result.persisted,
-      dates: {
-        startDate: weeklyAdMeta.startDate,
-        endDate: weeklyAdMeta.endDate,
-      },
-    });
   });
 
   // ===================

@@ -1,0 +1,20 @@
+services:
+  scraper:
+    build: .
+    ports:
+      - "3010:3010"
+    restart: unless-stopped
+    environment:
+      - API_KEY=${API_KEY}
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    restart: unless-stopped
+    volumes:
+      - ./config.yml:/etc/cloudflared/config.yml
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    depends_on:
+      - scraper
+
