@@ -93,7 +93,9 @@ export class ScrapeManagement implements OnInit {
 
   storeStats(instanceId: string): StoreStat[] {
     const status = this.scrapeStatus()[instanceId];
-    return status?.scraped && status.dealCount ? [{ label: 'Deals this week', value: status.dealCount }] : [];
+    return status?.scraped && status.dealCount
+      ? [{ label: 'Deals this week', value: status.dealCount }]
+      : [{ label: 'Deals this week', value: 'Not scraped' }];
   }
 
   scrapeSeverity(instanceId: string): ButtonSeverity {
