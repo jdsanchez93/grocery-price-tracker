@@ -1,1 +1,7 @@
-<router-outlet></router-outlet>
+@if (isLoading()) {
+  <div class="app-loader" aria-label="Loading" role="status">
+    <div class="app-loader-spinner"></div>
+  </div>
+} @else {
+  <router-outlet />
+}
