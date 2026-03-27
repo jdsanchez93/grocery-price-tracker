@@ -72,8 +72,21 @@ jobs:
       - run: npm test
         working-directory: infrastructure
 
+  ci:
+    needs: [test-api, test-frontend, test-infrastructure]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check test results
+        run: |
+          if [[ "${{ needs.test-api.result }}" == "failure" || \
+                "${{ needs.test-frontend.result }}" == "failure" || \
+                "${{ needs.test-infrastructure.result }}" == "failure" ]]; then
+            exit 1
+          fi
+
   deploy:
-    needs: [changes, test-api, test-frontend, test-infrastructure]
+    needs: [changes, ci]
     if: >-
       github.event_name != 'pull_request' &&
       (
