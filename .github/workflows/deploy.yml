@@ -11,24 +11,77 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  changes:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        package: [api, frontend, infrastructure]
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      infrastructure: ${{ steps.filter.outputs.infrastructure }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'api/**'
+            frontend:
+              - 'frontend/**'
+            infrastructure:
+              - 'infrastructure/**'
+
+  test-api:
+    needs: [changes]
+    if: needs.changes.outputs.api == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - run: npm ci
-        working-directory: ${{ matrix.package }}
+        working-directory: api
       - run: npm test
-        working-directory: ${{ matrix.package }}
+        working-directory: api
+
+  test-frontend:
+    needs: [changes]
+    if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+
+  test-infrastructure:
+    needs: [changes]
+    if: needs.changes.outputs.infrastructure == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+        working-directory: infrastructure
+      - run: npm test
+        working-directory: infrastructure
 
   deploy:
-    needs: test
-    if: github.event_name != 'pull_request'
+    needs: [changes, test-api, test-frontend, test-infrastructure]
+    if: >-
+      github.event_name != 'pull_request' &&
+      (
+        needs.changes.outputs.api == 'true' ||
+        needs.changes.outputs.frontend == 'true' ||
+        needs.changes.outputs.infrastructure == 'true' ||
+        github.event_name == 'workflow_dispatch'
+      )
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,9 +93,13 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ vars.AWS_REGION }}
           mask-aws-account-id: true
-      - run: npm ci
+      - name: Install frontend deps
+        if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
+        run: npm ci
         working-directory: frontend
-      - run: npm run build
+      - name: Build frontend
+        if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
+        run: npm run build
         working-directory: frontend
       - run: npm ci
         working-directory: api
