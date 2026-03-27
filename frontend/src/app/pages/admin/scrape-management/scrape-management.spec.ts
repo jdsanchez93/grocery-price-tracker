@@ -112,8 +112,10 @@ describe('ScrapeManagement', () => {
   });
 
   describe('storeStats', () => {
-    it('should return empty array for an unscraped store', () => {
-      expect(component.storeStats('safeway:456')).toEqual([]);
+    it('should return "Not scraped" placeholder for an unscraped store', () => {
+      expect(component.storeStats('safeway:456')).toEqual([
+        { label: 'Deals this week', value: 'Not scraped' },
+      ]);
     });
 
     it('should return deal count stat for a scraped store', () => {
@@ -122,8 +124,10 @@ describe('ScrapeManagement', () => {
       ]);
     });
 
-    it('should return empty array for an unknown instanceId', () => {
-      expect(component.storeStats('unknown:999')).toEqual([]);
+    it('should return "Not scraped" placeholder for an unknown instanceId', () => {
+      expect(component.storeStats('unknown:999')).toEqual([
+        { label: 'Deals this week', value: 'Not scraped' },
+      ]);
     });
 
     it('should reflect updated deal count after scraping', () => {
