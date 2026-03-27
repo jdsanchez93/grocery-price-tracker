@@ -88,6 +88,8 @@ jobs:
   deploy:
     needs: [changes, ci]
     if: >-
+      always() &&
+      needs.ci.result == 'success' &&
       github.event_name != 'pull_request' &&
       (
         needs.changes.outputs.api == 'true' ||
