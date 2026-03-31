@@ -45,7 +45,7 @@ function refineDeptFromName(name: string): NormalizedDept | undefined {
   if (/ice cream|gelato|sorbet|frozen|popsicle|pizza|pot pie|steamer/.test(n)) return 'frozen';
   if (/\bmilk\b|cheese|yogurt|butter|cream cheese|creamer|\begg/.test(n)) return 'dairy';
   if (/\bchicken\b|beef|pork|salmon|steak|bacon|tuna/.test(n)) return 'meat';
-  if (/\bsoda\b|juice|\bwater\b|coffee|tea|energy drink|sparkling|seltzer|powerade|gatorade|celsius|alani/.test(n)) return 'beverages';
+  if (/\bsoda\b|juice|\bwater\b|coffee|tea|energy drink|sparkling|seltzer|powerade|gatorade|celsius|alani|coca.?cola|\bpepsi\b|\b7.?up\b|\bsprite\b|dr\.?\s*pepper|mountain\s*dew/.test(n)) return 'beverages';
   if (/cereal|granola/.test(n)) return 'cereal';
   if (/\bchip|cracker|pretzel|popcorn/.test(n)) return 'snacks';
   if (/candy|chocolate|gummy|jellybean|m&m|peep|cadbury|brach/.test(n)) return 'candy';
@@ -412,9 +412,11 @@ const CANONICAL_PRODUCTS: CanonicalProduct[] = [
     patterns: [
       /soda/i,
       /coca-?cola/i,
-      /pepsi/i,
+      /\bpepsi\b/i,
+      /\b7-?up\b/i,
       /sprite/i,
       /dr\.?\s*pepper/i,
+      /mountain\s*dew/i,
     ],
     deptIn: ['beverages'],
   },

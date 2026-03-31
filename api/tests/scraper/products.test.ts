@@ -59,8 +59,16 @@ describe('normalizeDept', () => {
       expect(normalizeDept('GROCERY', 'Ruffles')).toBe('pantry');
     });
 
-    it('GROCERY + beverage name → beverages', () => {
+    it('GROCERY + seltzer name → beverages', () => {
       expect(normalizeDept('GROCERY', 'Polar Seltzer Water')).toBe('beverages');
+    });
+
+    it('GROCERY + Coca-Cola brand name → beverages', () => {
+      expect(normalizeDept('GROCERY', 'Coca-Cola')).toBe('beverages');
+    });
+
+    it('GROCERY + bundled Pepsi/7UP deal name → beverages', () => {
+      expect(normalizeDept('GROCERY', 'Pepsi or 7UP')).toBe('beverages');
     });
 
     it('GROCERY + pasta name → pantry (fallback finds no match, stays pantry)', () => {
@@ -115,6 +123,24 @@ describe('findCanonicalProductId', () => {
 
     it('matches KS Miss Vickie\'s via NATURAL FOODS + name fallback', () => {
       expect(findCanonicalProductId("Miss Vickie's Kettle Cooked Potato Chips", undefined, 'NATURAL FOODS')).toBe('chips');
+    });
+  });
+
+  describe('soda', () => {
+    it('matches KS Coca-Cola via GROCERY name fallback', () => {
+      expect(findCanonicalProductId('Coca-Cola', undefined, 'GROCERY')).toBe('soda');
+    });
+
+    it('matches KS bundled Pepsi/7UP deal', () => {
+      expect(findCanonicalProductId('Pepsi or 7UP', undefined, 'GROCERY')).toBe('soda');
+    });
+
+    it('matches standalone 7UP', () => {
+      expect(findCanonicalProductId('7UP', undefined, 'GROCERY')).toBe('soda');
+    });
+
+    it('matches Safeway soda via beverages dept', () => {
+      expect(findCanonicalProductId('Coca-Cola, Pepsi, 7-Up Soft Drinks', undefined, 'Beverages')).toBe('soda');
     });
   });
 
