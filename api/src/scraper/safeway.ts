@@ -31,6 +31,18 @@ interface FlippProduct {
   image_url?: string;
   sale_story?: string;
   brand?: string;
+  // Flipp's ML-generated category hierarchy (up to 7 levels). More precise than `categories`
+  // (e.g. l4 = "Ice Cream & Frozen Yogurt" while `categories` = ["Dairy, Eggs & Cheese"]).
+  // Could be used as a higher-fidelity input to normalizeDept in place of or alongside `categories`.
+  item_categories?: {
+    l1?: { category_name: string; google_category_id: number; confidence: number | null } | null;
+    l2?: { category_name: string; google_category_id: number; confidence: number | null } | null;
+    l3?: { category_name: string; google_category_id: number; confidence: number | null } | null;
+    l4?: { category_name: string; google_category_id: number; confidence: number | null } | null;
+    l5?: { category_name: string; google_category_id: number; confidence: number | null } | null;
+    l6?: { category_name: string; google_category_id: number; confidence: number | null } | null;
+    l7?: { category_name: string; google_category_id: number; confidence: number | null } | null;
+  };
 }
 
 // Default Flipp access token (public token from web)
@@ -310,7 +322,7 @@ export async function fetchAndPersistWeeklyDeals(
 
   // Write deals to DynamoDB with canonical product matching
   await writeDeals(storeInstanceId, weekId, deals, (deal) =>
-    findCanonicalProductId(deal.name, deal.details)
+    findCanonicalProductId(deal.name, deal.details, deal.dept)
   );
 
   // Write circular metadata - use provided dates or calculate from today

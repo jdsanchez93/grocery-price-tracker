@@ -34,6 +34,7 @@ export interface StandardDeal {
   quantity: number;
   loyalty: string | undefined;
   image: string | undefined;
+  upcs?: string[];
   priceVariants?: PriceVariant[];
 }
 
@@ -429,6 +430,7 @@ export async function _resolveBogoFromWorkerData(
         );
       }
       deal.priceVariants = variants;
+      deal.upcs = upcs;
       deals[dealIndex] = deal;
     } catch (err) {
       logger.warn({ err, name, dealId: ad.id }, 'BOGO price resolution failed');
@@ -493,7 +495,7 @@ export async function fetchAndPersistWeeklyDeals(
   }
 
   await writeDeals(storeInstanceId, weekId, deals, (deal) =>
-    findCanonicalProductId(deal.name, deal.details)
+    findCanonicalProductId(deal.name, deal.details, deal.dept)
   );
 
   await writeCircular(
