@@ -90,6 +90,7 @@ export interface DealItem extends BaseItem {
   loyalty: string | undefined;
   image: string | undefined;
   canonicalProductId?: string;
+  upcs?: string[];
   priceVariants?: PriceVariant[];
 }
 

@@ -24,6 +24,7 @@ import {
   generateStoreInstanceId,
 } from '../types/database';
 import { StandardDeal } from '../scraper/kingsoopers';
+import { normalizeDept } from '../scraper/products';
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
@@ -56,13 +57,14 @@ export async function writeDeal(
     weekId,
     name: deal.name,
     details: deal.details,
-    dept: deal.dept,
+    dept: deal.dept ? normalizeDept(deal.dept, deal.name) : deal.dept,
     priceDisplay: deal.priceDisplay,
     priceNumber: deal.priceNumber,
     quantity: deal.quantity,
     loyalty: deal.loyalty,
     image: deal.image,
     canonicalProductId,
+    ...(deal.upcs && deal.upcs.length > 0 && { upcs: deal.upcs }),
     ...(deal.priceVariants && deal.priceVariants.length > 0 && {
       priceVariants: deal.priceVariants,
     }),
@@ -75,7 +77,7 @@ export async function writeDeal(
     }),
     // GSI2 for browsing by week
     GSI2PK: Keys.gsi2.pk(weekId),
-    GSI2SK: Keys.gsi2.sk(storeInstanceId, deal.dept || 'uncategorized'),
+    GSI2SK: Keys.gsi2.sk(storeInstanceId, deal.dept ? normalizeDept(deal.dept, deal.name) : 'uncategorized'),
   };
 
   await docClient.send(new PutCommand({
@@ -110,13 +112,14 @@ export async function writeDeals(
         weekId,
         name: deal.name,
         details: deal.details,
-        dept: deal.dept,
+        dept: deal.dept ? normalizeDept(deal.dept, deal.name) : deal.dept,
         priceDisplay: deal.priceDisplay,
         priceNumber: deal.priceNumber,
         quantity: deal.quantity,
         loyalty: deal.loyalty,
         image: deal.image,
         canonicalProductId,
+        ...(deal.upcs && deal.upcs.length > 0 && { upcs: deal.upcs }),
         ...(deal.priceVariants && deal.priceVariants.length > 0 && {
           priceVariants: deal.priceVariants,
         }),
@@ -127,7 +130,7 @@ export async function writeDeals(
           GSI1SK: Keys.gsi1.sk(date, storeInstanceId),
         }),
         GSI2PK: Keys.gsi2.pk(weekId),
-        GSI2SK: Keys.gsi2.sk(storeInstanceId, deal.dept || 'uncategorized'),
+        GSI2SK: Keys.gsi2.sk(storeInstanceId, deal.dept ? normalizeDept(deal.dept, deal.name) : 'uncategorized'),
       };
 
       return { PutRequest: { Item: item } };
