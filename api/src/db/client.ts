@@ -17,7 +17,6 @@ import {
   UserStoreItem,
   CircularItem,
   getCurrentWeekId,
-  getISODate,
   StoreType,
   StoreIdentifiers,
   StoreAddress,
@@ -46,7 +45,6 @@ export async function writeDeal(
 ): Promise<void> {
   const now = new Date().toISOString();
   const dealId = generateDealId(deal);
-  const date = getISODate();
 
   const item: DealItem = {
     PK: Keys.deal.pk(storeInstanceId, weekId),
@@ -73,7 +71,7 @@ export async function writeDeal(
     // GSI1 for price history (only if we have a canonical product)
     ...(canonicalProductId && {
       GSI1PK: Keys.gsi1.pk(canonicalProductId),
-      GSI1SK: Keys.gsi1.sk(date, storeInstanceId),
+      GSI1SK: Keys.gsi1.sk(weekId, storeInstanceId),
     }),
     // GSI2 for browsing by week
     GSI2PK: Keys.gsi2.pk(weekId),
@@ -95,7 +93,6 @@ export async function writeDeals(
   // DynamoDB BatchWrite supports max 25 items
   const BATCH_SIZE = 25;
   const now = new Date().toISOString();
-  const date = getISODate();
 
   for (let i = 0; i < deals.length; i += BATCH_SIZE) {
     const batch = deals.slice(i, i + BATCH_SIZE);
@@ -127,7 +124,7 @@ export async function writeDeals(
         updatedAt: now,
         ...(canonicalProductId && {
           GSI1PK: Keys.gsi1.pk(canonicalProductId),
-          GSI1SK: Keys.gsi1.sk(date, storeInstanceId),
+          GSI1SK: Keys.gsi1.sk(weekId, storeInstanceId),
         }),
         GSI2PK: Keys.gsi2.pk(weekId),
         GSI2SK: Keys.gsi2.sk(storeInstanceId, deal.dept ? normalizeDept(deal.dept, deal.name) : 'uncategorized'),
