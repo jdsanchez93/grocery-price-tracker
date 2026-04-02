@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { Table, TableModule } from 'primeng/table';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { InputTextModule } from 'primeng/inputtext';
@@ -11,7 +12,7 @@ import { ImageModule } from 'primeng/image';
 import { Deal } from '../../../core/models/deal.model';
 import { getStoreDisplayName, getStoreSeverity, TagSeverity } from '../../../core/models/store.model';
 
-export type DealColumnField = 'image' | 'store' | 'name' | 'dept' | 'priceDisplay' | 'quantity' | 'loyalty';
+export type DealColumnField = 'image' | 'store' | 'name' | 'dept' | 'priceDisplay' | 'quantity' | 'loyalty' | 'weekId';
 
 export interface DealColumnConfig {
   field: DealColumnField;
@@ -27,6 +28,7 @@ export interface DealColumnConfig {
   selector: 'app-deals-table',
   imports: [
     CurrencyPipe,
+    RouterLink,
     TableModule,
     MultiSelectModule,
     InputTextModule,
@@ -44,6 +46,7 @@ export class DealsTable {
   deals = input.required<Deal[]>();
   columns = input.required<DealColumnConfig[]>();
   loading = input(false);
+  showHistoryLink = input(false);
   rows = input(20);
   rowsPerPageOptions = input([10, 20, 50]);
   dataKey = input('dealId');

@@ -190,6 +190,30 @@ describe('DealsTable', () => {
     });
   });
 
+  describe('showHistoryLink', () => {
+    it('should default to false', () => {
+      expect(component.showHistoryLink()).toBe(false);
+    });
+
+    it('should reflect the input value when set to true', () => {
+      fixture.componentRef.setInput('showHistoryLink', true);
+      fixture.detectChanges();
+      expect(component.showHistoryLink()).toBe(true);
+    });
+  });
+
+  describe('weekId column', () => {
+    it('getFieldValue should return weekId string', () => {
+      const deal = makeDeal({ weekId: '2026-W14' });
+      expect(component.getFieldValue(deal, 'weekId')).toBe('2026-W14');
+    });
+
+    it('getFieldValue should return empty string when weekId is undefined', () => {
+      const deal = makeDeal({ weekId: undefined as any });
+      expect(component.getFieldValue(deal, 'weekId')).toBe('');
+    });
+  });
+
   describe('onGlobalFilter', () => {
     it('should call table.filterGlobal with input value', () => {
       const mockTable = { filterGlobal: vi.fn() } as unknown as Table;
