@@ -441,6 +441,9 @@ export function createApp() {
   });
 
   // Get price history for a product (requires deals:read + history:read permissions)
+  // Note: history:read is an Auth0 RBAC permission — it must be granted to the
+  // `power_user` (and `admin`) roles in the Auth0 dashboard for the frontend
+  // role guard to align with API enforcement.
   app.get('/me/products/:id/history', requirePermission('deals:read', 'history:read'), async (c) => {
     const user = getAuthUser(c);
     const canonicalProductId = c.req.param('id');

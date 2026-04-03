@@ -21,5 +21,6 @@ export interface Deal {
   quantity: number;
   loyalty: string | undefined;
   image: string | undefined;
+  canonicalProductId?: string;
   priceVariants?: PriceVariant[];
 }

@@ -1,10 +1,13 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Component, input, signal } from '@angular/core';
+import { BehaviorSubject } from 'rxjs';
+import { AuthService } from '@auth0/auth0-angular';
 import { CurrentDeals } from './current-deals';
 import { DealsService } from '@/app/core/services/deals.service';
 import { Deal } from '../../../core/models/deal.model';
 import { DealColumnConfig, DealsTable } from '../deals-table/deals-table';
 import { makeDeal } from '../../../core/models/test-utils';
+import { ROLES_CLAIM } from '@/app/core/auth/auth.constants';
 
 @Component({
   selector: 'app-deals-table',
@@ -14,6 +17,7 @@ class StubDealsTable {
   deals = input.required<Deal[]>();
   columns = input.required<DealColumnConfig[]>();
   loading = input(false);
+  showHistoryLink = input(false);
 }
 
 describe('CurrentDeals', () => {
@@ -24,6 +28,7 @@ describe('CurrentDeals', () => {
   const mockLoading = signal(false);
   const mockStoreOptions = signal<{ value: string; label: string }[]>([]);
   const mockDepartmentOptions = signal<{ value: string; label: string }[]>([]);
+  let user$: BehaviorSubject<Record<string, unknown> | null | undefined>;
 
   const mockDealsService = {
     deals: mockDeals.asReadonly(),
@@ -37,10 +42,14 @@ describe('CurrentDeals', () => {
     mockLoading.set(false);
     mockStoreOptions.set([]);
     mockDepartmentOptions.set([]);
+    user$ = new BehaviorSubject<Record<string, unknown> | null | undefined>(null);
 
     await TestBed.configureTestingModule({
       imports: [CurrentDeals],
-      providers: [{ provide: DealsService, useValue: mockDealsService }],
+      providers: [
+        { provide: DealsService, useValue: mockDealsService },
+        { provide: AuthService, useValue: { user$: user$.asObservable() } },
+      ],
     })
       .overrideComponent(CurrentDeals, {
         remove: { imports: [DealsTable] },
@@ -133,6 +142,44 @@ describe('CurrentDeals', () => {
 
       const tableEl = fixture.nativeElement.querySelector('app-deals-table');
       expect(tableEl).toBeTruthy();
+    });
+  });
+
+  describe('showHistoryLink', () => {
+    it('should be false when user is null', () => {
+      user$.next(null);
+      fixture.detectChanges();
+      expect(component.showHistoryLink()).toBe(false);
+    });
+
+    it('should be false when user has no roles', () => {
+      user$.next({ [ROLES_CLAIM]: [] });
+      fixture.detectChanges();
+      expect(component.showHistoryLink()).toBe(false);
+    });
+
+    it('should be false when user has an unrelated role', () => {
+      user$.next({ [ROLES_CLAIM]: ['viewer'] });
+      fixture.detectChanges();
+      expect(component.showHistoryLink()).toBe(false);
+    });
+
+    it('should be true when user has power_user role', () => {
+      user$.next({ [ROLES_CLAIM]: ['power_user'] });
+      fixture.detectChanges();
+      expect(component.showHistoryLink()).toBe(true);
+    });
+
+    it('should be true when user has admin role', () => {
+      user$.next({ [ROLES_CLAIM]: ['admin'] });
+      fixture.detectChanges();
+      expect(component.showHistoryLink()).toBe(true);
+    });
+
+    it('should be true when user has both power_user and admin', () => {
+      user$.next({ [ROLES_CLAIM]: ['power_user', 'admin'] });
+      fixture.detectChanges();
+      expect(component.showHistoryLink()).toBe(true);
     });
   });
 });
