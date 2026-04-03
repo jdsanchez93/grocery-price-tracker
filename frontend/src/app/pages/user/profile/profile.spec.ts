@@ -56,12 +56,12 @@ describe('Profile', () => {
   });
 
   it('displays multiple roles joined with ", "', async () => {
-    user$.next({ name: 'Jane Doe', [ROLES_CLAIM]: ['admin', 'user'] });
+    user$.next({ name: 'Jane Doe', [ROLES_CLAIM]: ['admin', 'power_user'] });
     fixture.detectChanges();
     await fixture.whenStable();
 
     const subtitle = fixture.nativeElement.querySelector('.p-card-subtitle');
-    expect(subtitle?.textContent?.trim()).toBe('admin, user');
+    expect(subtitle?.textContent?.trim()).toBe('admin, power_user');
   });
 
   it('displays empty string for role when no roles claim present', async () => {
