@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getWeekIdForDate } from '../../src/types/database'
+import { getWeekIdForDate, Keys } from '../../src/types/database'
 
 describe('getCurrentWeekId', () => {
   it('should start a new week on Wednesday', () => {
@@ -55,5 +55,31 @@ describe('getCurrentWeekId', () => {
 
     expect(week1).toMatch(/^\d{4}-W\d{2}$/);
     expect(week2).toMatch(/^\d{4}-W\d{2}$/);
+  });
+});
+
+describe('Keys.gsi1', () => {
+  it('pk should be prefixed with PRODUCT#', () => {
+    expect(Keys.gsi1.pk('chicken-breast')).toBe('PRODUCT#chicken-breast');
+  });
+
+  it('sk should be prefixed with weekId, not a calendar date', () => {
+    const sk = Keys.gsi1.sk('2026-W14', 'kingsoopers:abc123');
+    expect(sk).toBe('2026-W14#kingsoopers:abc123');
+    // Ensure it does NOT start with an ISO calendar date (YYYY-MM-DD)
+    expect(sk).not.toMatch(/^\d{4}-\d{2}-\d{2}#/);
+  });
+
+  it('sk should sort chronologically across weeks', () => {
+    const sk1 = Keys.gsi1.sk('2026-W10', 'kingsoopers:abc123');
+    const sk2 = Keys.gsi1.sk('2026-W14', 'kingsoopers:abc123');
+    const sk3 = Keys.gsi1.sk('2027-W01', 'kingsoopers:abc123');
+    expect(sk1 < sk2).toBe(true);
+    expect(sk2 < sk3).toBe(true);
+  });
+
+  it('sk should include storeInstanceId for per-store disambiguation', () => {
+    const sk = Keys.gsi1.sk('2026-W14', 'safeway:xyz789');
+    expect(sk).toContain('safeway:xyz789');
   });
 });

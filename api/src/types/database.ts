@@ -185,7 +185,7 @@ export const Keys = {
   gsi1: {
     // Price history: query by product across stores/dates
     pk: (canonicalProductId: string) => `PRODUCT#${canonicalProductId}`,
-    sk: (date: string, storeInstanceId: string) => `${date}#${storeInstanceId}`,
+    sk: (weekId: string, storeInstanceId: string) => `${weekId}#${storeInstanceId}`,
   },
   gsi2: {
     // Browse: query by week, filter by store/dept
