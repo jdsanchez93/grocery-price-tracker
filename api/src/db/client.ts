@@ -309,7 +309,7 @@ export async function getUser(userId: string): Promise<UserItem | null> {
   return (result.Item as UserItem) || null;
 }
 
-export async function createUser(userId: string, email: string, name?: string): Promise<UserItem> {
+export async function createUser(userId: string, email: string, name?: string, onboarded?: boolean): Promise<UserItem> {
   const now = new Date().toISOString();
 
   const item: UserItem = {
@@ -319,6 +319,7 @@ export async function createUser(userId: string, email: string, name?: string): 
     userId,
     email,
     name,
+    ...(onboarded !== undefined && { onboarded }),
     createdAt: now,
     updatedAt: now,
   };
@@ -330,6 +331,24 @@ export async function createUser(userId: string, email: string, name?: string): 
 
   return item;
 }
+
+export async function updateUserOnboarded(userId: string): Promise<void> {
+  const now = new Date().toISOString();
+
+  await docClient.send(new UpdateCommand({
+    TableName: TABLE_NAME,
+    Key: {
+      PK: Keys.user.pk(userId),
+      SK: Keys.user.sk(),
+    },
+    UpdateExpression: 'SET onboarded = :onboarded, updatedAt = :now',
+    ExpressionAttributeValues: {
+      ':onboarded': true,
+      ':now': now,
+    },
+  }));
+}
+
 
 // User Stores
 export async function getUserStores(userId: string): Promise<UserStoreItem[]> {

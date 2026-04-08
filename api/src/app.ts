@@ -19,6 +19,7 @@ import {
   removeUserStore,
   getUser,
   createUser,
+  updateUserOnboarded,
   getPriceHistory,
   getStoreInstancesByType,
   getStoreInstance,
@@ -344,6 +345,26 @@ export function createApp() {
   // User Endpoints (/me/*)
   // ===================
 
+  // Get user profile (creates user record on first call for new users)
+  app.get('/me/profile', requirePermission('user-stores:read'), async (c) => {
+    const user = getAuthUser(c);
+    const userRecord = await getUser(user.userId);
+
+    if (!userRecord) {
+      await createUser(user.userId, user.email || '', undefined, false);
+      return c.json({ onboarded: false });
+    }
+
+    return c.json({ onboarded: userRecord.onboarded === true });
+  });
+
+  // Mark user as onboarded
+  app.post('/me/onboarding/complete', requirePermission('user-stores:read'), async (c) => {
+    const user = getAuthUser(c);
+    await updateUserOnboarded(user.userId);
+    return c.json({ success: true });
+  });
+
   // Get current week ID
   app.get('/me/week', requirePermission('deals:read'), (c) => {
     return c.json({ weekId: getCurrentWeekId() });
@@ -391,7 +412,7 @@ export function createApp() {
     // Ensure user exists in DB
     const existingUser = await getUser(user.userId);
     if (!existingUser) {
-      await createUser(user.userId, user.email || '', undefined);
+      await createUser(user.userId, user.email || '', undefined, true);
     }
 
     const userStore = await addUserStore(user.userId, instanceId);
