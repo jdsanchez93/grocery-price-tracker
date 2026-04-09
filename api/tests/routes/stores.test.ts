@@ -21,6 +21,7 @@ vi.mock('../../src/db/client', () => ({
   removeUserStore: vi.fn(),
   getUser: vi.fn(),
   createUser: vi.fn(),
+  updateUserOnboarded: vi.fn(),
   getPriceHistory: vi.fn(),
 }));
 

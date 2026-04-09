@@ -135,6 +135,7 @@ export interface UserItem extends BaseItem {
   userId: string;
   email: string;
   name?: string;
+  onboarded?: boolean;
 }
 
 export interface UserStoreItem extends BaseItem {
