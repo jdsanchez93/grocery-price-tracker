@@ -14,7 +14,7 @@ import { AuthButtons } from "@/app/core/auth/auth-buttons/auth-buttons";
             <button class="layout-menu-button layout-topbar-action" (click)="layoutService.onMenuToggle()">
                 <i class="pi pi-bars"></i>
             </button>
-            <a class="layout-topbar-logo" routerLink="/">
+            <a class="layout-topbar-logo" routerLink="/dashboard">
                 <span>Grocery Price Tracker</span>
             </a>
         </div>
