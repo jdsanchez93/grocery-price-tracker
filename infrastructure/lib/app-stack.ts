@@ -137,17 +137,27 @@ export class AppStack extends cdk.Stack {
       priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
       errorResponses: [
         {
-          httpStatus: 403,
-          responseHttpStatus: 200,
-          responsePagePath: '/index.html',
-        },
-        {
           httpStatus: 404,
           responseHttpStatus: 200,
           responsePagePath: '/index.html',
         },
       ],
     });
+
+    // Grant ListBucket so S3 returns 404 (not 403) for missing keys, allowing
+    // CloudFront to serve index.html for Angular routes via the 404 error response
+    // while letting real API 403s pass through to the frontend.
+    frontendBucket.addToResourcePolicy(new cdk.aws_iam.PolicyStatement({
+      effect: cdk.aws_iam.Effect.ALLOW,
+      principals: [new cdk.aws_iam.ServicePrincipal('cloudfront.amazonaws.com')],
+      actions: ['s3:ListBucket'],
+      resources: [frontendBucket.bucketArn],
+      conditions: {
+        StringEquals: {
+          'AWS:SourceArn': `arn:aws:cloudfront::${this.account}:distribution/${distribution.distributionId}`,
+        },
+      },
+    }));
 
     // --- Frontend deployment (only if dist exists) ---
     const frontendDistPath = path.join(__dirname, '../../frontend/dist/frontend/browser');
