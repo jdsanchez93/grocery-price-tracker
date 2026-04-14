@@ -11,8 +11,9 @@ import { ButtonModule } from 'primeng/button';
 import { ImageModule } from 'primeng/image';
 import { Deal } from '../../../core/models/deal.model';
 import { getStoreDisplayName, getStoreSeverity, TagSeverity } from '../../../core/models/store.model';
+import { DealRatingBadge } from '../../../shared/components/deal-rating-badge/deal-rating-badge';
 
-export type DealColumnField = 'image' | 'store' | 'name' | 'dept' | 'priceDisplay' | 'quantity' | 'loyalty' | 'weekId';
+export type DealColumnField = 'image' | 'store' | 'name' | 'dept' | 'priceDisplay' | 'quantity' | 'loyalty' | 'weekId' | 'rating';
 
 export interface DealColumnConfig {
   field: DealColumnField;
@@ -37,6 +38,7 @@ export interface DealColumnConfig {
     TagModule,
     ButtonModule,
     ImageModule,
+    DealRatingBadge,
   ],
   templateUrl: './deals-table.html',
   styleUrl: './deals-table.scss',

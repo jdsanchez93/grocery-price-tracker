@@ -157,6 +157,11 @@
                 <p-tag [value]="deal.loyalty" severity="warn" />
               }
             }
+            @case ('rating') {
+              @if (deal.rating) {
+                <app-deal-rating-badge [rating]="deal.rating" />
+              }
+            }
             @case ('priceDisplay') {
               {{ deal.priceDisplay }}
             }

@@ -37,6 +37,7 @@ import {
   STORE_TYPE_METADATA,
   getWeekIdForDate,
 } from './types/database';
+import { computeDealRating } from './analysis/dealRating';
 
 
 type LambdaBindings = {
@@ -453,6 +454,35 @@ export function createApp() {
     }
 
     const deals = await getDealsForUserStores(user.userId, weekId);
+
+    if (hasPermission(c, 'history:read')) {
+      const uniqueProductIds = [...new Set(
+        deals
+          .filter(d => d.canonicalProductId && d.priceNumber != null)
+          .map(d => d.canonicalProductId!)
+      )];
+
+      const historyMap = new Map<string, typeof deals>();
+      await Promise.all(
+        uniqueProductIds.map(async (id) => {
+          const h = await getPriceHistory(id, undefined, 20);
+          historyMap.set(id, h);
+        })
+      );
+
+      const enrichedDeals = deals.map(deal => {
+        if (!deal.canonicalProductId || deal.priceNumber == null) return deal;
+        const h = historyMap.get(deal.canonicalProductId) ?? [];
+        const rating = computeDealRating(deal.priceNumber, deal.weekId, h);
+        return rating ? { ...deal, rating } : deal;
+      });
+
+      return c.json({
+        weekId,
+        deals: enrichedDeals,
+        count: enrichedDeals.length,
+      });
+    }
 
     return c.json({
       weekId,

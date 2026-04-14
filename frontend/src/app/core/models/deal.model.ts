@@ -5,6 +5,14 @@ export interface PriceVariant {
   avgWeight?: number;
 }
 
+export interface DealRating {
+  label: 'best' | 'good' | 'typical' | 'high';
+  percentVsAvg: number;
+  historicalAvg: number;
+  historicalMin: number;
+  sampleSize: number;
+}
+
 /**
  * Deal model for the client-side application.
  * Simplified version of the API's DealItem, without DynamoDB-specific fields.
@@ -23,4 +31,5 @@ export interface Deal {
   image: string | undefined;
   canonicalProductId?: string;
   priceVariants?: PriceVariant[];
+  rating?: DealRating;
 }
