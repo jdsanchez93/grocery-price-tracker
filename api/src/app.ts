@@ -456,6 +456,8 @@ export function createApp() {
     const deals = await getDealsForUserStores(user.userId, weekId);
 
     if (hasPermission(c, 'history:read')) {
+      const userStoreIds = [...new Set(deals.map(d => d.storeInstanceId))];
+
       const uniqueProductIds = [...new Set(
         deals
           .filter(d => d.canonicalProductId && d.priceNumber != null)
@@ -465,7 +467,7 @@ export function createApp() {
       const historyMap = new Map<string, typeof deals>();
       await Promise.all(
         uniqueProductIds.map(async (id) => {
-          const h = await getPriceHistory(id, undefined, 100);
+          const h = await getPriceHistory(id, userStoreIds, 100);
           historyMap.set(id, h);
         })
       );
