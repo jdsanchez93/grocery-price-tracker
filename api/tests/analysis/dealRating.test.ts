@@ -2,12 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { computeDealRating } from '../../src/analysis/dealRating';
 import { DealItem } from '../../src/types/database';
 
-function makeDeal(weekId: string, priceNumber: number | null): DealItem {
+function makeDeal(weekId: string, priceNumber: number | null, dealId = 'abc'): DealItem {
   return {
     PK: `STORE#test#WEEK#${weekId}`,
-    SK: 'DEAL#abc',
+    SK: `DEAL#${dealId}`,
     entityType: 'DEAL',
-    dealId: 'abc',
+    dealId,
     storeInstanceId: 'kingsoopers:abc',
     weekId,
     name: 'Test Product',
@@ -31,6 +31,7 @@ const BASE_HISTORY = [
   makeDeal('2026-W12', 4.20),
   makeDeal('2026-W11', 4.00),
 ];
+// One record per week → 4 distinct weeks
 // historicalAvg = (4.00 + 3.80 + 4.20 + 4.00) / 4 = 4.00
 // historicalMin = 3.80
 
@@ -48,9 +49,19 @@ describe('computeDealRating', () => {
     expect(rating?.label).toBe('best');
   });
 
-  it('returns good when price is more than 10% below average', () => {
-    // avg = 4.00, 10% below = 3.60
-    const rating = computeDealRating(3.50, CURRENT_WEEK, BASE_HISTORY);
+  it('returns good when price is more than 10% below average but above best threshold', () => {
+    // Use history where min is well below avg so best and good ranges don't overlap:
+    // prices: [3.00, 5.00, 5.00, 5.00] → avg=4.50, min=3.00
+    // best threshold: 3.00 * 1.02 = 3.06
+    // good threshold: 4.50 * 0.90 = 4.05
+    // price 3.50: > 3.06 (not best), < 4.05 (good) ✓
+    const history = [
+      makeDeal('2026-W14', 3.00),
+      makeDeal('2026-W13', 5.00),
+      makeDeal('2026-W12', 5.00),
+      makeDeal('2026-W11', 5.00),
+    ];
+    const rating = computeDealRating(3.50, CURRENT_WEEK, history);
     expect(rating?.label).toBe('good');
   });
 
@@ -71,9 +82,9 @@ describe('computeDealRating', () => {
     expect(rating?.label).toBe('high');
   });
 
-  it('returns null when fewer than 2 historical data points', () => {
-    const oneRecord = [makeDeal('2026-W14', 4.00)];
-    expect(computeDealRating(4.00, CURRENT_WEEK, oneRecord)).toBeNull();
+  it('returns null when fewer than 2 distinct historical weeks', () => {
+    const oneWeek = [makeDeal('2026-W14', 4.00)];
+    expect(computeDealRating(4.00, CURRENT_WEEK, oneWeek)).toBeNull();
     expect(computeDealRating(4.00, CURRENT_WEEK, [])).toBeNull();
   });
 
@@ -83,7 +94,6 @@ describe('computeDealRating', () => {
       ...BASE_HISTORY,
     ];
     const rating = computeDealRating(4.00, CURRENT_WEEK, historyWithCurrentWeek);
-    // Should still compute from BASE_HISTORY only
     expect(rating?.sampleSize).toBe(4);
     expect(rating?.historicalMin).toBe(3.80);
   });
@@ -105,6 +115,31 @@ describe('computeDealRating', () => {
       makeDeal('2026-W12', null),
     ];
     expect(computeDealRating(4.00, CURRENT_WEEK, nullHistory)).toBeNull();
+  });
+
+  it('deduplicates multiple deals in the same week, using the minimum price', () => {
+    // Week W14 has 3 deals (e.g. Coca-Cola $3.50, Pepsi $4.00, 7up $3.80)
+    // Week W13 has 1 deal
+    const multiDealHistory = [
+      makeDeal('2026-W14', 4.00, 'deal-1'),
+      makeDeal('2026-W14', 3.50, 'deal-2'), // cheapest in W14
+      makeDeal('2026-W14', 3.80, 'deal-3'),
+      makeDeal('2026-W13', 4.00, 'deal-4'),
+    ];
+    // After dedup: W14 → 3.50, W13 → 4.00 → avg = 3.75, min = 3.50
+    const rating = computeDealRating(4.00, CURRENT_WEEK, multiDealHistory);
+    expect(rating?.sampleSize).toBe(2); // 2 distinct weeks, not 4 raw records
+    expect(rating?.historicalMin).toBe(3.50);
+    expect(rating?.historicalAvg).toBe(3.75);
+  });
+
+  it('returns null when multiple deals all belong to only 1 distinct week', () => {
+    const singleWeek = [
+      makeDeal('2026-W14', 3.50, 'deal-1'),
+      makeDeal('2026-W14', 4.00, 'deal-2'),
+      makeDeal('2026-W14', 3.80, 'deal-3'),
+    ];
+    expect(computeDealRating(4.00, CURRENT_WEEK, singleWeek)).toBeNull();
   });
 
   it('computes percentVsAvg correctly', () => {

@@ -465,7 +465,7 @@ export function createApp() {
       const historyMap = new Map<string, typeof deals>();
       await Promise.all(
         uniqueProductIds.map(async (id) => {
-          const h = await getPriceHistory(id, undefined, 20);
+          const h = await getPriceHistory(id, undefined, 100);
           historyMap.set(id, h);
         })
       );

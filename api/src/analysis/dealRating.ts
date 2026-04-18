@@ -18,14 +18,25 @@ export function computeDealRating(
     (h) => h.weekId !== currentWeekId && h.priceNumber != null
   ) as (DealItem & { priceNumber: number })[];
 
-  if (filtered.length < 2) {
+  // Collapse to one price per week (minimum) so sampleSize means "distinct weeks"
+  // and stats aren't skewed by weeks with multiple matching deals
+  const weekMinMap = new Map<string, number>();
+  for (const item of filtered) {
+    const existing = weekMinMap.get(item.weekId);
+    if (existing === undefined || item.priceNumber < existing) {
+      weekMinMap.set(item.weekId, item.priceNumber);
+    }
+  }
+
+  // Require at least 2 distinct weeks of history
+  if (weekMinMap.size < 2) {
     return null;
   }
 
-  const prices = filtered.map((h) => h.priceNumber);
+  const prices = [...weekMinMap.values()];
   const historicalAvg = prices.reduce((sum, p) => sum + p, 0) / prices.length;
   const historicalMin = Math.min(...prices);
-  const sampleSize = prices.length;
+  const sampleSize = weekMinMap.size; // distinct weeks
   const percentVsAvg = Math.round(((currentPrice - historicalAvg) / historicalAvg) * 100);
 
   let label: DealRating['label'];
