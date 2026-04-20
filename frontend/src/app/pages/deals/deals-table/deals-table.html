@@ -83,7 +83,7 @@
                     appendTo="body"
                     [maxSelectedLabels]="1"
                     [selectedItemsLabel]="'{0} selected'"
-                    [style]="{ 'min-width': '8rem' }"
+                    [style]="{ 'width': '100%' }"
                   />
                 </ng-template>
               </p-columnFilter>
@@ -133,8 +133,16 @@
             }
             @case ('store') {
               <p-tag
+                class="store-full"
                 [value]="getStoreDisplayName(deal.storeInstanceId)"
                 [severity]="getStoreSeverity(deal.storeInstanceId)"
+              />
+              <p-tag
+                class="store-abbr"
+                [value]="getStoreAbbr(deal.storeInstanceId)"
+                [severity]="getStoreSeverity(deal.storeInstanceId)"
+                [pTooltip]="getStoreDisplayName(deal.storeInstanceId)"
+                tooltipPosition="top"
               />
             }
             @case ('name') {
@@ -154,7 +162,12 @@
             }
             @case ('loyalty') {
               @if (deal.loyalty) {
-                <p-tag [value]="deal.loyalty" severity="warn" />
+                <i
+                  [class]="getLoyaltyIcon(deal.loyalty)"
+                  [pTooltip]="getLoyaltyTooltip(deal.loyalty)"
+                  tooltipPosition="top"
+                  aria-hidden="true"
+                ></i>
               }
             }
             @case ('rating') {

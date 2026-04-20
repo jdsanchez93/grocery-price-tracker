@@ -67,6 +67,20 @@
   }
 }
 
+.store-abbr {
+  display: none;
+}
+
+@media (max-width: 991px) {
+  .store-full {
+    display: none;
+  }
+
+  .store-abbr {
+    display: inline-flex;
+  }
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

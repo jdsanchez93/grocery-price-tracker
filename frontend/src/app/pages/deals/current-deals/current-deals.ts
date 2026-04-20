@@ -45,7 +45,8 @@ export class CurrentDeals {
       sortable: true,
       filterType: 'multiselect',
       filterField: 'storeInstanceId',
-      filterOptions: this.dealsService.storeOptions()
+      filterOptions: this.dealsService.storeOptions(),
+      style: { width: '80px' }
     },
     {
       field: 'name',
@@ -68,7 +69,7 @@ export class CurrentDeals {
     {
       field: 'loyalty',
       header: 'Loyalty',
-      style: { width: '120px' }
+      style: { width: '60px' }
     },
     ...(this.isPowerUser() ? [{
       field: 'rating' as const,

@@ -9,15 +9,16 @@ export type StoreType = 'kingsoopers' | 'safeway' | 'sprouts';
 export interface StoreMetadata {
   name: string;
   chain: string;
+  abbr: string;
 }
 
 /**
  * Map of store types to their display metadata.
  */
 export const STORE_TYPE_METADATA: Record<StoreType, StoreMetadata> = {
-  kingsoopers: { name: 'King Soopers', chain: 'kroger' },
-  safeway: { name: 'Safeway', chain: 'albertsons' },
-  sprouts: { name: 'Sprouts', chain: 'sprouts' },
+  kingsoopers: { name: 'King Soopers', chain: 'kroger',     abbr: 'KS' },
+  safeway:     { name: 'Safeway',      chain: 'albertsons', abbr: 'SW' },
+  sprouts:     { name: 'Sprouts',      chain: 'sprouts',    abbr: 'SP' },
 };
 
 export type TagSeverity = 'success' | 'info' | 'warn' | 'danger' | 'secondary' | 'contrast';
@@ -67,6 +68,14 @@ export function getStoreTypeFromInstanceId(instanceId: string): StoreType {
 export function getStoreDisplayName(instanceId: string): string {
   const storeType = getStoreTypeFromInstanceId(instanceId);
   return STORE_TYPE_METADATA[storeType]?.name ?? instanceId;
+}
+
+/**
+ * Helper to get short abbreviation for a store instance ID.
+ */
+export function getStoreAbbr(instanceId: string): string {
+  const storeType = getStoreTypeFromInstanceId(instanceId);
+  return STORE_TYPE_METADATA[storeType]?.abbr ?? instanceId;
 }
 
 /**
