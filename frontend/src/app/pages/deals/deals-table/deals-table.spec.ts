@@ -121,6 +121,24 @@ describe('DealsTable', () => {
     });
   });
 
+  describe('getStoreAbbr', () => {
+    it('should return KS for kingsoopers', () => {
+      expect(component.getStoreAbbr('kingsoopers:a')).toBe('KS');
+    });
+
+    it('should return SW for safeway', () => {
+      expect(component.getStoreAbbr('safeway:b')).toBe('SW');
+    });
+
+    it('should return SP for sprouts', () => {
+      expect(component.getStoreAbbr('sprouts:c')).toBe('SP');
+    });
+
+    it('should fall back to instanceId for unknown stores', () => {
+      expect(component.getStoreAbbr('walmart:x')).toBe('walmart:x');
+    });
+  });
+
   describe('getStoreSeverity', () => {
     it('should return info for kingsoopers', () => {
       expect(component.getStoreSeverity('kingsoopers:a')).toBe('info');
@@ -136,6 +154,46 @@ describe('DealsTable', () => {
 
     it('should return secondary for unknown stores', () => {
       expect(component.getStoreSeverity('walmart:x')).toBe('secondary');
+    });
+  });
+
+  describe('getLoyaltyIcon', () => {
+    it('should return tag icon for "With Digital Coupon"', () => {
+      expect(component.getLoyaltyIcon('With Digital Coupon')).toBe('pi pi-tag');
+    });
+
+    it('should return tag icon for strings containing "coupon"', () => {
+      expect(component.getLoyaltyIcon('digital coupon required')).toBe('pi pi-tag');
+    });
+
+    it('should return credit-card icon for "With Card"', () => {
+      expect(component.getLoyaltyIcon('With Card')).toBe('pi pi-credit-card');
+    });
+
+    it('should return credit-card icon for "CARD_REQUIRED"', () => {
+      expect(component.getLoyaltyIcon('CARD_REQUIRED')).toBe('pi pi-credit-card');
+    });
+
+    it('should return star icon for unknown loyalty values', () => {
+      expect(component.getLoyaltyIcon('some unknown value')).toBe('pi pi-star');
+    });
+  });
+
+  describe('getLoyaltyTooltip', () => {
+    it('should return digital coupon tooltip for "With Digital Coupon"', () => {
+      expect(component.getLoyaltyTooltip('With Digital Coupon')).toBe('Requires digital coupon');
+    });
+
+    it('should return loyalty card tooltip for "With Card"', () => {
+      expect(component.getLoyaltyTooltip('With Card')).toBe('Requires loyalty card');
+    });
+
+    it('should return loyalty card tooltip for "CARD_REQUIRED"', () => {
+      expect(component.getLoyaltyTooltip('CARD_REQUIRED')).toBe('Requires loyalty card');
+    });
+
+    it('should return the raw value for unknown loyalty strings', () => {
+      expect(component.getLoyaltyTooltip('some unknown value')).toBe('some unknown value');
     });
   });
 
