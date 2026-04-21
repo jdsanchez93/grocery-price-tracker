@@ -50,7 +50,6 @@ export class DealsTable {
   deals = input.required<Deal[]>();
   columns = input.required<DealColumnConfig[]>();
   loading = input(false);
-  showHistoryLink = input(false);
   rows = input(20);
   rowsPerPageOptions = input([10, 20, 50]);
   dataKey = input('dealId');

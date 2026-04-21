@@ -14,15 +14,15 @@ describe('store.model', () => {
     });
 
     it('should have correct metadata for kingsoopers', () => {
-      expect(STORE_TYPE_METADATA.kingsoopers).toEqual({ name: 'King Soopers', chain: 'kroger' });
+      expect(STORE_TYPE_METADATA.kingsoopers).toEqual({ name: 'King Soopers', chain: 'kroger', abbr: 'KS' });
     });
 
     it('should have correct metadata for safeway', () => {
-      expect(STORE_TYPE_METADATA.safeway).toEqual({ name: 'Safeway', chain: 'albertsons' });
+      expect(STORE_TYPE_METADATA.safeway).toEqual({ name: 'Safeway', chain: 'albertsons', abbr: 'SW' });
     });
 
     it('should have correct metadata for sprouts', () => {
-      expect(STORE_TYPE_METADATA.sprouts).toEqual({ name: 'Sprouts', chain: 'sprouts' });
+      expect(STORE_TYPE_METADATA.sprouts).toEqual({ name: 'Sprouts', chain: 'sprouts', abbr: 'SP' });
     });
   });
 

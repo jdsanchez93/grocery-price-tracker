@@ -14,7 +14,6 @@ import { Auth0User, ROLES_CLAIM } from '@/app/core/auth/auth.constants';
       [deals]="deals()"
       [columns]="columns()"
       [loading]="loading()"
-      [showHistoryLink]="showHistoryLink()"
     />
   `
 })
@@ -26,8 +25,6 @@ export class CurrentDeals {
     const roles = this.user()?.[ROLES_CLAIM] ?? [];
     return roles.includes('power_user') || roles.includes('admin');
   });
-
-  showHistoryLink = this.isPowerUser;
 
   deals = this.dealsService.deals;
 

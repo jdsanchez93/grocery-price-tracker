@@ -150,15 +150,6 @@
               @if (deal.details) {
                 <small class="deal-details">{{ deal.details }}</small>
               }
-              @if (showHistoryLink() && deal.canonicalProductId) {
-                <a
-                  [routerLink]="['/analytics/products', deal.canonicalProductId, 'history']"
-                  class="history-link"
-                  aria-label="View price history for {{ deal.name }}"
-                >
-                  <i class="pi pi-chart-line" aria-hidden="true"></i>
-                </a>
-              }
             }
             @case ('loyalty') {
               @if (deal.loyalty) {
@@ -171,8 +162,14 @@
               }
             }
             @case ('rating') {
-              @if (deal.rating) {
-                <app-deal-rating-badge [rating]="deal.rating" />
+              @if (deal.rating && deal.canonicalProductId) {
+                <a
+                  [routerLink]="['/analytics/products', deal.canonicalProductId, 'history']"
+                  class="rating-link"
+                  [attr.aria-label]="'View price history for ' + deal.name"
+                >
+                  <app-deal-rating-badge [rating]="deal.rating" />
+                </a>
               }
             }
             @case ('priceDisplay') {

@@ -190,18 +190,6 @@ describe('DealsTable', () => {
     });
   });
 
-  describe('showHistoryLink', () => {
-    it('should default to false', () => {
-      expect(component.showHistoryLink()).toBe(false);
-    });
-
-    it('should reflect the input value when set to true', () => {
-      fixture.componentRef.setInput('showHistoryLink', true);
-      fixture.detectChanges();
-      expect(component.showHistoryLink()).toBe(true);
-    });
-  });
-
   describe('weekId column', () => {
     it('getFieldValue should return weekId string', () => {
       const deal = makeDeal({ weekId: '2026-W14' });

@@ -1,3 +1,12 @@
+.rating-link {
+  display: inline-flex;
+  text-decoration: none;
+
+  &:hover {
+    opacity: 0.85;
+  }
+}
+
 .table-caption {
   display: flex;
   align-items: center;
