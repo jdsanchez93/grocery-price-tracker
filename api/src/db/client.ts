@@ -422,7 +422,8 @@ export async function getDealsForUserStores(
 // Price History
 export async function getPriceHistory(
   canonicalProductId: string,
-  storeInstanceIds?: string[]
+  storeInstanceIds?: string[],
+  limit?: number
 ): Promise<DealItem[]> {
   const result = await docClient.send(new QueryCommand({
     TableName: TABLE_NAME,
@@ -432,6 +433,7 @@ export async function getPriceHistory(
       ':pk': Keys.gsi1.pk(canonicalProductId),
     },
     ScanIndexForward: false, // Most recent first
+    ...(limit != null && { Limit: limit }),
   }));
 
   let items = (result.Items || []) as DealItem[];

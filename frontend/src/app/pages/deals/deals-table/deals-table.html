@@ -83,7 +83,7 @@
                     appendTo="body"
                     [maxSelectedLabels]="1"
                     [selectedItemsLabel]="'{0} selected'"
-                    [style]="{ 'min-width': '8rem' }"
+                    [style]="{ 'width': '100%' }"
                   />
                 </ng-template>
               </p-columnFilter>
@@ -133,8 +133,16 @@
             }
             @case ('store') {
               <p-tag
+                class="store-full"
                 [value]="getStoreDisplayName(deal.storeInstanceId)"
                 [severity]="getStoreSeverity(deal.storeInstanceId)"
+              />
+              <p-tag
+                class="store-abbr"
+                [value]="getStoreAbbr(deal.storeInstanceId)"
+                [severity]="getStoreSeverity(deal.storeInstanceId)"
+                [pTooltip]="getStoreDisplayName(deal.storeInstanceId)"
+                tooltipPosition="top"
               />
             }
             @case ('name') {
@@ -142,19 +150,26 @@
               @if (deal.details) {
                 <small class="deal-details">{{ deal.details }}</small>
               }
-              @if (showHistoryLink() && deal.canonicalProductId) {
-                <a
-                  [routerLink]="['/analytics/products', deal.canonicalProductId, 'history']"
-                  class="history-link"
-                  aria-label="View price history for {{ deal.name }}"
-                >
-                  <i class="pi pi-chart-line" aria-hidden="true"></i>
-                </a>
-              }
             }
             @case ('loyalty') {
               @if (deal.loyalty) {
-                <p-tag [value]="deal.loyalty" severity="warn" />
+                <i
+                  [class]="getLoyaltyIcon(deal.loyalty)"
+                  [pTooltip]="getLoyaltyTooltip(deal.loyalty)"
+                  tooltipPosition="top"
+                  aria-hidden="true"
+                ></i>
+              }
+            }
+            @case ('rating') {
+              @if (deal.rating && deal.canonicalProductId) {
+                <a
+                  [routerLink]="['/analytics/products', deal.canonicalProductId, 'history']"
+                  class="rating-link"
+                  [attr.aria-label]="'View price history for ' + deal.name"
+                >
+                  <app-deal-rating-badge [rating]="deal.rating" />
+                </a>
               }
             }
             @case ('priceDisplay') {

@@ -17,7 +17,6 @@ class StubDealsTable {
   deals = input.required<Deal[]>();
   columns = input.required<DealColumnConfig[]>();
   loading = input(false);
-  showHistoryLink = input(false);
 }
 
 describe('CurrentDeals', () => {
@@ -110,7 +109,7 @@ describe('CurrentDeals', () => {
 
     it('should configure loyalty column with width style', () => {
       const loyaltyCol = component.columns().find(c => c.field === 'loyalty')!;
-      expect(loyaltyCol.style).toEqual({ width: '120px' });
+      expect(loyaltyCol.style).toEqual({ width: '60px' });
     });
 
     it('should populate store filterOptions from service', () => {
@@ -145,41 +144,41 @@ describe('CurrentDeals', () => {
     });
   });
 
-  describe('showHistoryLink', () => {
-    it('should be false when user is null', () => {
+  describe('rating column', () => {
+    it('should not include rating column when user is null', () => {
       user$.next(null);
       fixture.detectChanges();
-      expect(component.showHistoryLink()).toBe(false);
+      expect(component.columns().map(c => c.field)).not.toContain('rating');
     });
 
-    it('should be false when user has no roles', () => {
+    it('should not include rating column when user has no roles', () => {
       user$.next({ [ROLES_CLAIM]: [] });
       fixture.detectChanges();
-      expect(component.showHistoryLink()).toBe(false);
+      expect(component.columns().map(c => c.field)).not.toContain('rating');
     });
 
-    it('should be false when user has an unrelated role', () => {
+    it('should not include rating column when user has an unrelated role', () => {
       user$.next({ [ROLES_CLAIM]: ['viewer'] });
       fixture.detectChanges();
-      expect(component.showHistoryLink()).toBe(false);
+      expect(component.columns().map(c => c.field)).not.toContain('rating');
     });
 
-    it('should be true when user has power_user role', () => {
+    it('should include rating column when user has power_user role', () => {
       user$.next({ [ROLES_CLAIM]: ['power_user'] });
       fixture.detectChanges();
-      expect(component.showHistoryLink()).toBe(true);
+      expect(component.columns().map(c => c.field)).toContain('rating');
     });
 
-    it('should be true when user has admin role', () => {
+    it('should include rating column when user has admin role', () => {
       user$.next({ [ROLES_CLAIM]: ['admin'] });
       fixture.detectChanges();
-      expect(component.showHistoryLink()).toBe(true);
+      expect(component.columns().map(c => c.field)).toContain('rating');
     });
 
-    it('should be true when user has both power_user and admin', () => {
-      user$.next({ [ROLES_CLAIM]: ['power_user', 'admin'] });
+    it('should produce 6 columns for power users', () => {
+      user$.next({ [ROLES_CLAIM]: ['power_user'] });
       fixture.detectChanges();
-      expect(component.showHistoryLink()).toBe(true);
+      expect(component.columns().length).toBe(6);
     });
   });
 });

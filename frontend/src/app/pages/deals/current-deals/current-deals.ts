@@ -1,4 +1,4 @@
-import { Component, Signal, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Signal, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { AuthService } from '@auth0/auth0-angular';
 import { DealColumnConfig, DealsTable } from "../deals-table/deals-table";
@@ -8,12 +8,12 @@ import { Auth0User, ROLES_CLAIM } from '@/app/core/auth/auth.constants';
 @Component({
   selector: 'app-current-deals',
   imports: [DealsTable],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-deals-table
       [deals]="deals()"
       [columns]="columns()"
       [loading]="loading()"
-      [showHistoryLink]="showHistoryLink()"
     />
   `
 })
@@ -21,7 +21,7 @@ export class CurrentDeals {
   private dealsService = inject(DealsService);
   private user = toSignal(inject(AuthService).user$) as Signal<Auth0User | null | undefined>;
 
-  showHistoryLink = computed(() => {
+  private isPowerUser = computed(() => {
     const roles = this.user()?.[ROLES_CLAIM] ?? [];
     return roles.includes('power_user') || roles.includes('admin');
   });
@@ -42,7 +42,8 @@ export class CurrentDeals {
       sortable: true,
       filterType: 'multiselect',
       filterField: 'storeInstanceId',
-      filterOptions: this.dealsService.storeOptions()
+      filterOptions: this.dealsService.storeOptions(),
+      style: { width: '80px' }
     },
     {
       field: 'name',
@@ -65,7 +66,12 @@ export class CurrentDeals {
     {
       field: 'loyalty',
       header: 'Loyalty',
-      style: { width: '120px' }
+      style: { width: '60px' }
     },
+    ...(this.isPowerUser() ? [{
+      field: 'rating' as const,
+      header: 'Rating',
+      style: { width: '130px' }
+    }] : []),
   ]);
 }
