@@ -21,7 +21,6 @@ import {
   createUser,
   updateUserOnboarded,
   getPriceHistory,
-  getStoreInstancesByType,
   getStoreInstance,
   writeStoreInstance,
   getCircular,
@@ -63,40 +62,23 @@ export function createApp() {
   // Store Endpoints (/stores/*)
   // ===================
 
-  // List store instances for a specific type
-  app.get('/stores/:type', requirePermission('stores:read'), async (c) => {
-    const storeType = c.req.param('type') as StoreType;
-
-    // Validate store type exists
-    const typeInfo = STORE_TYPE_METADATA[storeType];
-    if (!typeInfo) {
-      return c.json({ error: 'Store type not found' }, 404);
-    }
-
-    const instances = await getStoreInstancesByType(storeType);
-    return c.json({
-      storeType: {
-        storeType,
-        name: typeInfo.name,
-        chain: typeInfo.chain,
-      },
-      stores: instances,
-    });
+  // List all store instances
+  app.get('/stores', requirePermission('stores:read'), async (c) => {
+    const instances = await getAllStores();
+    const stores = instances.map(s => ({
+      instanceId: s.instanceId,
+      name: s.name,
+      storeType: s.storeType,
+      identifiers: s.identifiers,
+      enabled: s.enabled,
+      ...(s.address && { address: s.address }),
+    }));
+    return c.json({ stores });
   });
 
   // ===================
   // Admin Endpoints (/admin/*)
   // ===================
-
-  // Get all stores
-  // TODO re-work -- either move from /admin to /stores or merge with /admin/scrape/status
-  app.get('/admin/stores', requirePermission('scraper:run'), async (c) => {
-    const stores = await getAllStores();
-    if (!stores) {
-      return c.json({ error: 'No stores found' }, 404);
-    }
-    return c.json(stores);
-  });
 
   // Create a store instance
   app.post('/admin/stores', requirePermission('stores:write'), async (c) => {

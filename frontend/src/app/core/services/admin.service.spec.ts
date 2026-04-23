@@ -46,7 +46,7 @@ describe('AdminService', () => {
   });
 
   describe('getAllStores', () => {
-    it('should send GET to /admin/stores and return AvailableStore[]', () => {
+    it('should send GET to /stores and return AvailableStore[]', () => {
       const mockStores: AvailableStore[] = [
         { instanceId: 'kingsoopers:123', name: 'King Soopers #123', storeType: 'kingsoopers', identifiers: {}, enabled: true },
         { instanceId: 'safeway:456', name: 'Safeway #456', storeType: 'safeway', identifiers: {}, enabled: true },
@@ -55,9 +55,9 @@ describe('AdminService', () => {
       let result: AvailableStore[] | undefined;
       service.getAllStores().subscribe(stores => result = stores);
 
-      const req = httpCtrl.expectOne(`${API}/admin/stores`);
+      const req = httpCtrl.expectOne(`${API}/stores`);
       expect(req.request.method).toBe('GET');
-      req.flush(mockStores);
+      req.flush({ stores: mockStores });
 
       expect(result).toEqual(mockStores);
     });

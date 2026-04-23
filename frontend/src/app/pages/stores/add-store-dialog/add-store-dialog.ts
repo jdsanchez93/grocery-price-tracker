@@ -128,7 +128,12 @@ export class AddStoreDialog {
   loadingAvailable = this.storesService.loadingAvailable;
   error = this.storesService.error;
   storeTypeOptions = this.storesService.getAvailableStoreTypeOptions;
-  availableStores = this.storesService.getAvailableStores;
+
+  availableStores = computed(() => {
+    const type = this.selectedStoreType();
+    if (!type) return [];
+    return this.storesService.getAvailableStoresByType(type);
+  });
 
   locationOptions = computed<LocationOption[]>(() => {
     return this.availableStores()
@@ -153,18 +158,11 @@ export class AddStoreDialog {
   onDialogHide(): void {
     this.selectedStoreType.set(null);
     this.selectedLocation.set(null);
-    this.storesService.clearAvailableStores();
   }
 
   onStoreTypeChange(): void {
-    const type = this.selectedStoreType();
     this.selectedLocation.set(null);
-
-    if (type) {
-      this.storesService.loadAvailableStores(type);
-    } else {
-      this.storesService.clearAvailableStores();
-    }
+    this.storesService.loadAllStores();
   }
 
   closeDialog(): void {

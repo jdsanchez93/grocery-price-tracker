@@ -26,10 +26,9 @@ function makeMockStoresService() {
     removeStore: vi.fn().mockReturnValue(of(undefined)),
     loadUserStores: vi.fn(),
     getAvailableStoreTypeOptions: signal([]),
-    getAvailableStores: signal([]),
     loadingAvailable: signal(false),
-    loadAvailableStores: vi.fn(),
-    clearAvailableStores: vi.fn(),
+    loadAllStores: vi.fn(),
+    getAvailableStoresByType: vi.fn().mockReturnValue([]),
   };
 }
 

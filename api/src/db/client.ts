@@ -30,6 +30,11 @@ const docClient = DynamoDBDocumentClient.from(client);
 
 const TABLE_NAME = process.env.TABLE_NAME || 'GroceryDeals';
 
+const STORES_CACHE_TTL_MS = 5 * 60 * 1000;
+let storesCacheData: StoreInstanceItem[] | null = null;
+let storesCacheTime = 0;
+function invalidateStoresCache(): void { storesCacheData = null; storesCacheTime = 0; }
+
 // Generate a unique deal ID from deal content using SHA-256 (truncated)
 function generateDealId(deal: StandardDeal): string {
   const normalized = `${deal.name || ''}-${deal.priceDisplay}-${deal.dept}-${deal.details || ''}-${deal.image || ''}`.toLowerCase();
@@ -174,16 +179,31 @@ export async function getDealsForWeek(weekId: string = getCurrentWeekId()): Prom
 // Store Instances
 // ===================
 export async function getAllStores(): Promise<StoreInstanceItem[]> {
-  const { ScanCommand } = await import('@aws-sdk/lib-dynamodb');
-  const result = await docClient.send(new ScanCommand({
-    TableName: TABLE_NAME,
-    FilterExpression: 'entityType = :entityType',
-    ExpressionAttributeValues: {
-      ':entityType': 'STORE_INSTANCE',
-    },
-  }));
+  const now = Date.now();
+  if (storesCacheData !== null && now - storesCacheTime < STORES_CACHE_TTL_MS) {
+    return storesCacheData;
+  }
 
-  return (result.Items || []) as StoreInstanceItem[];
+  const { ScanCommand } = await import('@aws-sdk/lib-dynamodb');
+  const items: StoreInstanceItem[] = [];
+  let lastKey: Record<string, unknown> | undefined;
+
+  do {
+    const result = await docClient.send(new ScanCommand({
+      TableName: TABLE_NAME,
+      FilterExpression: 'entityType = :entityType',
+      ExpressionAttributeValues: {
+        ':entityType': 'STORE_INSTANCE',
+      },
+      ExclusiveStartKey: lastKey,
+    }));
+    items.push(...((result.Items || []) as StoreInstanceItem[]));
+    lastKey = result.LastEvaluatedKey as Record<string, unknown> | undefined;
+  } while (lastKey);
+
+  storesCacheData = items;
+  storesCacheTime = Date.now();
+  return items;
 }
 export async function getStoreInstance(instanceId: string): Promise<StoreInstanceItem | null> {
   const result = await docClient.send(new GetCommand({
@@ -197,20 +217,6 @@ export async function getStoreInstance(instanceId: string): Promise<StoreInstanc
   return (result.Item as StoreInstanceItem) || null;
 }
 
-export async function getStoreInstancesByType(storeType: StoreType): Promise<StoreInstanceItem[]> {
-  // Scan and filter by store type - acceptable for small number of instances
-  const { ScanCommand } = await import('@aws-sdk/lib-dynamodb');
-  const result = await docClient.send(new ScanCommand({
-    TableName: TABLE_NAME,
-    FilterExpression: 'entityType = :entityType AND storeType = :storeType',
-    ExpressionAttributeValues: {
-      ':entityType': 'STORE_INSTANCE',
-      ':storeType': storeType,
-    },
-  }));
-
-  return (result.Items || []) as StoreInstanceItem[];
-}
 
 export async function writeStoreInstance(
   identifiers: StoreIdentifiers,
@@ -235,6 +241,7 @@ export async function writeStoreInstance(
     updatedAt: now,
   };
 
+  invalidateStoresCache();
   await docClient.send(new PutCommand({
     TableName: TABLE_NAME,
     Item: item,
@@ -261,6 +268,7 @@ export async function updateStoreInstance(
   };
 
   try {
+    invalidateStoresCache();
     const result = await docClient.send(new UpdateCommand({
       TableName: TABLE_NAME,
       Key: {
