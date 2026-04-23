@@ -338,7 +338,12 @@ export class Onboarding {
 
   loading = this.storesService.loading;
   loadingAvailable = this.storesService.loadingAvailable;
-  availableStores = this.storesService.getAvailableStores;
+
+  availableStores = computed(() => {
+    const type = this.selectedStoreType();
+    if (!type) return [];
+    return this.storesService.getAvailableStoresByType(type);
+  });
 
   storeTypeOptions = computed(() => {
     const allTypes: StoreType[] = ['kingsoopers', 'safeway', 'sprouts'];
@@ -375,12 +380,7 @@ export class Onboarding {
 
   onStoreTypeChange(): void {
     this.selectedLocation.set(null);
-    const type = this.selectedStoreType();
-    if (type) {
-      this.storesService.loadAvailableStores(type);
-    } else {
-      this.storesService.clearAvailableStores();
-    }
+    this.storesService.loadAllStores();
   }
 
   addStore(activateCallback: (step: number) => void): void {

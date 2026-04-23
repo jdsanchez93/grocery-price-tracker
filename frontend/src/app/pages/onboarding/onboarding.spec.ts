@@ -24,10 +24,9 @@ function makeMockStoresService() {
     loading: signal(false),
     loadingAvailable: signal(false),
     error: signal<string | null>(null),
-    getAvailableStores: signal<AvailableStore[]>([]),
     addStore: vi.fn().mockReturnValue(of(undefined)),
-    loadAvailableStores: vi.fn(),
-    clearAvailableStores: vi.fn(),
+    loadAllStores: vi.fn(),
+    getAvailableStoresByType: vi.fn().mockReturnValue([makeAvailableStore()]),
   };
 }
 
@@ -87,12 +86,18 @@ describe('Onboarding', () => {
   });
 
   describe('locationOptions', () => {
+    it('should return empty array when no store type selected', () => {
+      const fixture = setup();
+      expect(fixture.componentInstance.locationOptions()).toHaveLength(0);
+    });
+
     it('should filter out disabled stores', () => {
       const fixture = setup();
-      mockStoresService.getAvailableStores.set([
+      mockStoresService.getAvailableStoresByType.mockReturnValue([
         makeAvailableStore({ instanceId: 'kingsoopers:a', enabled: true }),
         makeAvailableStore({ instanceId: 'kingsoopers:b', enabled: false }),
       ]);
+      fixture.componentInstance.selectedStoreType.set('kingsoopers');
       const options = fixture.componentInstance.locationOptions();
       expect(options.length).toBe(1);
       expect(options[0].value).toBe('kingsoopers:a');
@@ -100,32 +105,37 @@ describe('Onboarding', () => {
 
     it('should format label with full address when addressLine1 is present', () => {
       const fixture = setup();
-      mockStoresService.getAvailableStores.set([
+      mockStoresService.getAvailableStoresByType.mockReturnValue([
         makeAvailableStore({
           name: 'King Soopers',
           address: { addressLine1: '123 Main St', city: 'Denver', state: 'CO' },
         }),
       ]);
+      fixture.componentInstance.selectedStoreType.set('kingsoopers');
       const label = fixture.componentInstance.locationOptions()[0].label;
       expect(label).toBe('King Soopers — 123 Main St, Denver, CO');
     });
 
     it('should omit addressLine1 from label when not present', () => {
       const fixture = setup();
-      mockStoresService.getAvailableStores.set([
+      mockStoresService.getAvailableStoresByType.mockReturnValue([
         makeAvailableStore({
           name: 'Safeway',
           storeType: 'safeway',
           address: { addressLine1: '', city: 'Denver', state: 'CO' },
         }),
       ]);
+      fixture.componentInstance.selectedStoreType.set('safeway');
       const label = fixture.componentInstance.locationOptions()[0].label;
       expect(label).toBe('Safeway — Denver, CO');
     });
 
     it('should omit address suffix when no address', () => {
       const fixture = setup();
-      mockStoresService.getAvailableStores.set([makeAvailableStore({ name: 'Sprouts' })]);
+      mockStoresService.getAvailableStoresByType.mockReturnValue([
+        makeAvailableStore({ name: 'Sprouts' }),
+      ]);
+      fixture.componentInstance.selectedStoreType.set('kingsoopers');
       const label = fixture.componentInstance.locationOptions()[0].label;
       expect(label).toBe('Sprouts');
     });
@@ -140,14 +150,18 @@ describe('Onboarding', () => {
     it('should return the matching available store when a location is selected', () => {
       const fixture = setup();
       const store = makeAvailableStore({ instanceId: 'kingsoopers:abc' });
-      mockStoresService.getAvailableStores.set([store]);
+      mockStoresService.getAvailableStoresByType.mockReturnValue([store]);
+      fixture.componentInstance.selectedStoreType.set('kingsoopers');
       fixture.componentInstance.selectedLocation.set('kingsoopers:abc');
       expect(fixture.componentInstance.selectedStore()).toEqual(store);
     });
 
     it('should return null when selected instanceId does not match any store', () => {
       const fixture = setup();
-      mockStoresService.getAvailableStores.set([makeAvailableStore({ instanceId: 'kingsoopers:abc' })]);
+      mockStoresService.getAvailableStoresByType.mockReturnValue([
+        makeAvailableStore({ instanceId: 'kingsoopers:abc' }),
+      ]);
+      fixture.componentInstance.selectedStoreType.set('kingsoopers');
       fixture.componentInstance.selectedLocation.set('safeway:xyz');
       expect(fixture.componentInstance.selectedStore()).toBeNull();
     });
@@ -188,26 +202,18 @@ describe('Onboarding', () => {
       expect(fixture.componentInstance.selectedLocation()).toBeNull();
     });
 
-    it('should call loadAvailableStores with the selected type', () => {
+    it('should call loadAllStores', () => {
       const fixture = setup();
       fixture.componentInstance.selectedStoreType.set('safeway');
       fixture.componentInstance.onStoreTypeChange();
-      expect(mockStoresService.loadAvailableStores).toHaveBeenCalledWith('safeway');
-    });
-
-    it('should call clearAvailableStores when type is null', () => {
-      const fixture = setup();
-      fixture.componentInstance.selectedStoreType.set(null);
-      fixture.componentInstance.onStoreTypeChange();
-      expect(mockStoresService.clearAvailableStores).toHaveBeenCalled();
-      expect(mockStoresService.loadAvailableStores).not.toHaveBeenCalled();
+      expect(mockStoresService.loadAllStores).toHaveBeenCalled();
     });
   });
 
   describe('addStore', () => {
     function selectStore(fixture: ReturnType<typeof setup>) {
       const store = makeAvailableStore({ instanceId: 'kingsoopers:abc' });
-      mockStoresService.getAvailableStores.set([store]);
+      mockStoresService.getAvailableStoresByType.mockReturnValue([store]);
       fixture.componentInstance.selectedStoreType.set('kingsoopers');
       fixture.componentInstance.selectedLocation.set('kingsoopers:abc');
       fixture.componentInstance.activeStep.set(2);
@@ -270,7 +276,6 @@ describe('Onboarding', () => {
       selectStore(fixture);
       fixture.componentInstance.addError.set('Previous error');
       fixture.componentInstance.addStore(vi.fn());
-      // addError should be cleared on the new attempt (success path leaves it null)
       expect(fixture.componentInstance.addError()).toBeNull();
     });
   });

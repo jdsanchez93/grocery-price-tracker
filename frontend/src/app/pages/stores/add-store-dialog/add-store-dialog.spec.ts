@@ -1,7 +1,19 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { signal, WritableSignal } from '@angular/core';
+import { signal } from '@angular/core';
 import { AddStoreDialog } from './add-store-dialog';
 import { StoresService } from '@/app/core/services/stores.service';
+import { AvailableStore } from '@/app/core/models/store.model';
+
+function makeAvailableStore(overrides: Partial<AvailableStore> = {}): AvailableStore {
+  return {
+    instanceId: 'kingsoopers:abc',
+    name: 'KS #1',
+    storeType: 'kingsoopers',
+    identifiers: {},
+    enabled: true,
+    ...overrides,
+  };
+}
 
 function makeMockStoresService() {
   return {
@@ -12,11 +24,8 @@ function makeMockStoresService() {
       { value: 'kingsoopers', label: 'King Soopers', disabled: false },
       { value: 'safeway', label: 'Safeway', disabled: false },
     ]),
-    getAvailableStores: signal([
-      { instanceId: 'kingsoopers:abc', name: 'KS #1', storeType: 'kingsoopers', identifiers: {}, enabled: true },
-    ]),
-    loadAvailableStores: vi.fn(),
-    clearAvailableStores: vi.fn(),
+    getAvailableStoresByType: vi.fn().mockReturnValue([makeAvailableStore()]),
+    loadAllStores: vi.fn(),
   };
 }
 
@@ -50,7 +59,7 @@ describe('AddStoreDialog', () => {
     expect(component.visible()).toBe(true);
   });
 
-  it('onDialogHide() should reset state and clear available stores', () => {
+  it('onDialogHide() should reset state', () => {
     component.selectedStoreType.set('kingsoopers');
     component.selectedLocation.set('kingsoopers:abc');
 
@@ -58,21 +67,15 @@ describe('AddStoreDialog', () => {
 
     expect(component.selectedStoreType()).toBeNull();
     expect(component.selectedLocation()).toBeNull();
-    expect(mockStoresService.clearAvailableStores).toHaveBeenCalled();
   });
 
-  it('onStoreTypeChange() should load available stores when type selected', () => {
+  it('onStoreTypeChange() should call loadAllStores and reset location', () => {
+    component.selectedLocation.set('kingsoopers:abc');
     component.selectedStoreType.set('kingsoopers');
     component.onStoreTypeChange();
 
-    expect(mockStoresService.loadAvailableStores).toHaveBeenCalledWith('kingsoopers');
-  });
-
-  it('onStoreTypeChange() should clear available stores when type is null', () => {
-    component.selectedStoreType.set(null);
-    component.onStoreTypeChange();
-
-    expect(mockStoresService.clearAvailableStores).toHaveBeenCalled();
+    expect(component.selectedLocation()).toBeNull();
+    expect(mockStoresService.loadAllStores).toHaveBeenCalled();
   });
 
   it('onStoreTypeChange() should reset selectedLocation', () => {
@@ -122,10 +125,11 @@ describe('AddStoreDialog', () => {
   });
 
   it('locationOptions should filter to enabled stores', () => {
-    (mockStoresService.getAvailableStores as WritableSignal<unknown[]>).set([
-      { instanceId: 'kingsoopers:a', name: 'KS #1', storeType: 'kingsoopers', identifiers: {}, enabled: true },
-      { instanceId: 'kingsoopers:b', name: 'KS #2', storeType: 'kingsoopers', identifiers: {}, enabled: false },
+    mockStoresService.getAvailableStoresByType.mockReturnValue([
+      makeAvailableStore({ instanceId: 'kingsoopers:a', name: 'KS #1', enabled: true }),
+      makeAvailableStore({ instanceId: 'kingsoopers:b', name: 'KS #2', enabled: false }),
     ]);
+    component.selectedStoreType.set('kingsoopers');
 
     const options = component.locationOptions();
     expect(options.length).toBe(1);
@@ -134,45 +138,49 @@ describe('AddStoreDialog', () => {
 
   describe('locationOptions — address label formatting', () => {
     it('uses just the store name when no address', () => {
-      (mockStoresService.getAvailableStores as WritableSignal<unknown[]>).set([
-        { instanceId: 'kingsoopers:a', name: 'Pearl St', storeType: 'kingsoopers', identifiers: {}, enabled: true },
+      mockStoresService.getAvailableStoresByType.mockReturnValue([
+        makeAvailableStore({ instanceId: 'kingsoopers:a', name: 'Pearl St' }),
       ]);
+      component.selectedStoreType.set('kingsoopers');
 
       const options = component.locationOptions();
       expect(options[0].label).toBe('Pearl St');
     });
 
     it('appends full address when addressLine1 is present', () => {
-      (mockStoresService.getAvailableStores as WritableSignal<unknown[]>).set([
-        {
-          instanceId: 'kingsoopers:a', name: 'Pearl St', storeType: 'kingsoopers', identifiers: {}, enabled: true,
+      mockStoresService.getAvailableStoresByType.mockReturnValue([
+        makeAvailableStore({
+          instanceId: 'kingsoopers:a', name: 'Pearl St',
           address: { addressLine1: '1234 Pearl St', city: 'Boulder', state: 'CO', zipCode: '80000' },
-        },
+        }),
       ]);
+      component.selectedStoreType.set('kingsoopers');
 
       const options = component.locationOptions();
       expect(options[0].label).toBe('Pearl St — 1234 Pearl St, Boulder, CO');
     });
 
     it('appends city and state when addressLine1 is absent', () => {
-      (mockStoresService.getAvailableStores as WritableSignal<unknown[]>).set([
-        {
-          instanceId: 'kingsoopers:a', name: 'Pearl St', storeType: 'kingsoopers', identifiers: {}, enabled: true,
+      mockStoresService.getAvailableStoresByType.mockReturnValue([
+        makeAvailableStore({
+          instanceId: 'kingsoopers:a', name: 'Pearl St',
           address: { addressLine1: '', city: 'Boulder', state: 'CO' },
-        },
+        }),
       ]);
+      component.selectedStoreType.set('kingsoopers');
 
       const options = component.locationOptions();
       expect(options[0].label).toBe('Pearl St — Boulder, CO');
     });
 
     it('does not append anything for disabled stores (they are filtered out)', () => {
-      (mockStoresService.getAvailableStores as WritableSignal<unknown[]>).set([
-        {
-          instanceId: 'kingsoopers:a', name: 'Pearl St', storeType: 'kingsoopers', identifiers: {}, enabled: false,
+      mockStoresService.getAvailableStoresByType.mockReturnValue([
+        makeAvailableStore({
+          instanceId: 'kingsoopers:a', name: 'Pearl St', enabled: false,
           address: { addressLine1: '123 Main St', city: 'Denver', state: 'CO' },
-        },
+        }),
       ]);
+      component.selectedStoreType.set('kingsoopers');
 
       expect(component.locationOptions()).toHaveLength(0);
     });

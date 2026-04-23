@@ -12,7 +12,6 @@ vi.mock('../../src/db/client', () => ({
   writeStoreInstance: vi.fn(),
   updateStoreInstance: vi.fn(),
   getStoreInstance: vi.fn(),
-  getStoreInstancesByType: vi.fn(),
   getCircular: vi.fn(),
   deleteCircularAndDeals: vi.fn(),
   getDealsForUserStores: vi.fn(),

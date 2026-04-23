@@ -13,7 +13,7 @@ export class StoresService {
   private dealsService = inject(DealsService);
 
   private userStores = signal<UserStore[]>([]);
-  private availableStores = signal<AvailableStore[]>([]);
+  private allAvailableStores = signal<AvailableStore[]>([]);
 
   loading = signal(false);
   loadingAvailable = signal(false);
@@ -89,15 +89,17 @@ export class StoresService {
   }
 
   /**
-   * Load available stores for a store type.
+   * Load all available stores (idempotent — no-op if already loaded or in flight).
    */
-  loadAvailableStores(type: StoreType): void {
+  loadAllStores(): void {
+    if (this.allAvailableStores().length > 0 || this.loadingAvailable()) {
+      return;
+    }
     this.loadingAvailable.set(true);
-    this.availableStores.set([]);
 
-    this.http.get<AvailableStoresResponse>(`${environment.apiUrl}/stores/${type}`).subscribe({
+    this.http.get<AvailableStoresResponse>(`${environment.apiUrl}/stores`).subscribe({
       next: (response) => {
-        this.availableStores.set(response.stores);
+        this.allAvailableStores.set(response.stores);
         this.loadingAvailable.set(false);
       },
       error: (err) => {
@@ -108,10 +110,10 @@ export class StoresService {
   }
 
   /**
-   * Clear available stores.
+   * Get available stores filtered by type (in-memory, after loadAllStores).
    */
-  clearAvailableStores(): void {
-    this.availableStores.set([]);
+  getAvailableStoresByType(type: StoreType): AvailableStore[] {
+    return this.allAvailableStores().filter(s => s.storeType === type);
   }
 
   /**
@@ -120,9 +122,9 @@ export class StoresService {
   getUserStores = this.userStores.asReadonly();
 
   /**
-   * Get available stores.
+   * Get available stores (all types).
    */
-  getAvailableStores = this.availableStores.asReadonly();
+  getAvailableStores = this.allAvailableStores.asReadonly();
 
   /**
    * Get user's stores grouped by store type.

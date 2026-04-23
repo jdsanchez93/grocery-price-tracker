@@ -181,19 +181,19 @@ describe('StoresService', () => {
     });
   });
 
-  describe('loadAvailableStores', () => {
+  describe('loadAllStores', () => {
     beforeEach(() => {
       setup();
       flushInitialRequest();
     });
 
-    it('should fetch available stores for a type', () => {
-      const stores = [makeAvailableStore()];
-      service.loadAvailableStores('kingsoopers');
+    it('should fetch all stores and populate getAvailableStores', () => {
+      const stores = [makeAvailableStore(), makeAvailableStore({ instanceId: 'safeway:xyz', storeType: 'safeway', name: 'Safeway #1' })];
+      service.loadAllStores();
 
       expect(service.loadingAvailable()).toBe(true);
 
-      const req = httpCtrl.expectOne(`${API}/stores/kingsoopers`);
+      const req = httpCtrl.expectOne(`${API}/stores`);
       req.flush({ stores });
 
       expect(service.getAvailableStores()).toEqual(stores);
@@ -201,10 +201,31 @@ describe('StoresService', () => {
       httpCtrl.verify();
     });
 
-    it('should set error on failure', () => {
-      service.loadAvailableStores('kingsoopers');
+    it('should be idempotent — no second request if stores already loaded', () => {
+      const stores = [makeAvailableStore()];
+      service.loadAllStores();
+      httpCtrl.expectOne(`${API}/stores`).flush({ stores });
 
-      const req = httpCtrl.expectOne(`${API}/stores/kingsoopers`);
+      // Second call should not fire another request
+      service.loadAllStores();
+      httpCtrl.expectNone(`${API}/stores`);
+      httpCtrl.verify();
+    });
+
+    it('should be idempotent — no second request if a request is in flight', () => {
+      service.loadAllStores();
+      // Don't flush yet — request in flight
+      service.loadAllStores();
+
+      // Only one request should exist
+      httpCtrl.expectOne(`${API}/stores`).flush({ stores: [] });
+      httpCtrl.verify();
+    });
+
+    it('should set error on failure', () => {
+      service.loadAllStores();
+
+      const req = httpCtrl.expectOne(`${API}/stores`);
       req.flush('Error', { status: 500, statusText: 'Server Error' });
 
       expect(service.error()).toBeTruthy();
@@ -213,15 +234,22 @@ describe('StoresService', () => {
     });
   });
 
-  describe('clearAvailableStores', () => {
+  describe('getAvailableStoresByType', () => {
     beforeEach(() => {
       setup();
       flushInitialRequest();
     });
 
-    it('should clear available stores', () => {
-      service.clearAvailableStores();
-      expect(service.getAvailableStores()).toEqual([]);
+    it('should return only stores of the requested type', () => {
+      const ks = makeAvailableStore();
+      const sw = makeAvailableStore({ instanceId: 'safeway:xyz', storeType: 'safeway', name: 'Safeway #1' });
+      service.loadAllStores();
+      httpCtrl.expectOne(`${API}/stores`).flush({ stores: [ks, sw] });
+
+      expect(service.getAvailableStoresByType('kingsoopers')).toEqual([ks]);
+      expect(service.getAvailableStoresByType('safeway')).toEqual([sw]);
+      expect(service.getAvailableStoresByType('sprouts')).toEqual([]);
+      httpCtrl.verify();
     });
   });
 

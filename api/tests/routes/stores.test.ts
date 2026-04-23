@@ -12,7 +12,6 @@ vi.mock('../../src/db/client', () => ({
   writeStoreInstance: vi.fn(),
   updateStoreInstance: vi.fn(),
   getStoreInstance: vi.fn(),
-  getStoreInstancesByType: vi.fn().mockResolvedValue([]),
   getCircular: vi.fn(),
   deleteCircularAndDeals: vi.fn(),
   getDealsForUserStores: vi.fn().mockResolvedValue([]),
@@ -43,6 +42,75 @@ import { createApp } from '../../src/app';
 import * as dbClient from '../../src/db/client';
 
 const INSTANCE_ID = 'kingsoopers:abc123';
+
+const mockStoreItem = {
+  PK: `STOREINSTANCE#${INSTANCE_ID}`,
+  SK: 'METADATA',
+  entityType: 'STORE_INSTANCE' as const,
+  instanceId: INSTANCE_ID,
+  storeType: 'kingsoopers' as const,
+  name: 'King Soopers #1',
+  identifiers: { type: 'kingsoopers' as const, storeId: '123', facilityId: '456' },
+  enabled: true,
+  createdAt: '2024-01-01T00:00:00.000Z',
+  updatedAt: '2024-01-01T00:00:00.000Z',
+};
+
+describe('GET /api/stores', () => {
+  beforeEach(() => {
+    vi.mocked(dbClient.getAllStores).mockReset();
+  });
+
+  it('returns 200 with mapped store fields', async () => {
+    vi.mocked(dbClient.getAllStores).mockResolvedValue([mockStoreItem]);
+    const res = await createApp().request('/api/stores');
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.stores).toHaveLength(1);
+    expect(body.stores[0]).toEqual({
+      instanceId: INSTANCE_ID,
+      name: 'King Soopers #1',
+      storeType: 'kingsoopers',
+      identifiers: mockStoreItem.identifiers,
+      enabled: true,
+    });
+  });
+
+  it('omits PK, SK, entityType, and timestamp fields from response', async () => {
+    vi.mocked(dbClient.getAllStores).mockResolvedValue([mockStoreItem]);
+    const res = await createApp().request('/api/stores');
+    const body = await res.json();
+    const store = body.stores[0];
+    expect(store).not.toHaveProperty('PK');
+    expect(store).not.toHaveProperty('SK');
+    expect(store).not.toHaveProperty('entityType');
+    expect(store).not.toHaveProperty('createdAt');
+    expect(store).not.toHaveProperty('updatedAt');
+  });
+
+  it('includes address when present', async () => {
+    const withAddress = { ...mockStoreItem, address: { addressLine1: '123 Main St', city: 'Denver', state: 'CO' } };
+    vi.mocked(dbClient.getAllStores).mockResolvedValue([withAddress]);
+    const res = await createApp().request('/api/stores');
+    const body = await res.json();
+    expect(body.stores[0].address).toEqual(withAddress.address);
+  });
+
+  it('omits address key when not present', async () => {
+    vi.mocked(dbClient.getAllStores).mockResolvedValue([mockStoreItem]);
+    const res = await createApp().request('/api/stores');
+    const body = await res.json();
+    expect(body.stores[0]).not.toHaveProperty('address');
+  });
+
+  it('returns empty stores array when no stores exist', async () => {
+    vi.mocked(dbClient.getAllStores).mockResolvedValue([]);
+    const res = await createApp().request('/api/stores');
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.stores).toEqual([]);
+  });
+});
 
 const mockStore = {
   PK: `STOREINSTANCE#${INSTANCE_ID}`,

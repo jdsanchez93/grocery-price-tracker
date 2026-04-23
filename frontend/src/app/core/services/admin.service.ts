@@ -1,7 +1,7 @@
 import { environment } from '@/environments/environment';
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { AvailableStore, StoreAddress, StoreType } from '../models/store.model';
 import { AutoScrapeResponse, ScrapeStatusResponse } from '../models/admin.model';
 
@@ -40,7 +40,9 @@ export class AdminService {
   }
 
   getAllStores(): Observable<AvailableStore[]> {
-    return this.http.get<AvailableStore[]>(`${environment.apiUrl}/admin/stores`);
+    return this.http.get<{ stores: AvailableStore[] }>(`${environment.apiUrl}/stores`).pipe(
+      map(response => response.stores)
+    );
   }
 
   getScrapeStatus(instanceIds: string[]): Observable<ScrapeStatusResponse> {
