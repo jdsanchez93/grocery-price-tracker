@@ -1,14 +1,8 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Deal } from '../models/deal.model';
+import { Deal, DealsResponse } from '../models/deal.model';
 import { getStoreDisplayName } from '../models/store.model';
 import { environment } from '../../../environments/environment';
-
-interface DealsResponse {
-  weekId: string;
-  deals: Deal[];
-  count: number;
-}
 
 interface WeekResponse {
   weekId: string;
