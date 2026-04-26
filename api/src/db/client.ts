@@ -18,7 +18,6 @@ import {
   UserStoreItem,
   CircularItem,
   getCurrentWeekId,
-  StoreType,
   StoreIdentifiers,
   StoreAddress,
   generateStoreInstanceId,
@@ -161,6 +160,70 @@ export async function getDealsForStoreWeek(
   }));
 
   return (result.Items || []) as DealItem[];
+}
+
+type DealUpdates = {
+  canonicalProductId?: string | null; // null = clear it
+  dept?: string;
+};
+
+export async function updateDeal(
+  deal: DealItem,
+  updates: DealUpdates,
+  updatedBy: string
+): Promise<DealItem> {
+  if (updates.canonicalProductId === undefined && updates.dept === undefined) {
+    return deal;
+  }
+  const now = new Date().toISOString();
+  const sets: string[] = ['updatedAt = :now', 'updatedBy = :updatedBy'];
+  const removes: string[] = [];
+  const expressionAttributeValues: Record<string, unknown> = {
+    ':now': now,
+    ':updatedBy': updatedBy,
+  };
+
+  if (updates.canonicalProductId != null) {
+    sets.push('canonicalProductId = :cpi', 'GSI1PK = :gsi1pk');
+    expressionAttributeValues[':cpi'] = updates.canonicalProductId;
+    expressionAttributeValues[':gsi1pk'] = Keys.gsi1.pk(updates.canonicalProductId);
+  } else if (updates.canonicalProductId === null) {
+    removes.push('canonicalProductId', 'GSI1PK', 'GSI1SK');
+  }
+
+  if (updates.dept) {
+    sets.push('dept = :dept');
+    expressionAttributeValues[':dept'] = normalizeDept(updates.dept, deal.name);
+  }
+
+  const updateExpression = [
+    `SET ${sets.join(', ')}`,
+    removes.length ? `REMOVE ${removes.join(', ')}` : '',
+  ].filter(Boolean).join(' ');
+
+  const result = await docClient.send(new UpdateCommand({
+    TableName: TABLE_NAME,
+    Key: {
+      PK: deal.PK,
+      SK: deal.SK,
+    },
+    UpdateExpression: updateExpression,
+    ExpressionAttributeValues: expressionAttributeValues,
+    ConditionExpression: 'attribute_exists(PK)',
+    ReturnValues: 'ALL_NEW',
+  }));
+  return result.Attributes as DealItem;
+}
+
+export async function getDeal(dealId: string, instanceId: string, weekId: string): Promise<DealItem> {
+  const result = await docClient.send(new GetCommand({
+    TableName: TABLE_NAME,
+    Key: {
+      PK: Keys.deal.pk(instanceId, weekId),
+      SK: Keys.deal.sk(dealId)
+    }
+  }));
+  return (result.Item as DealItem) || null;
 }
 
 // ===================

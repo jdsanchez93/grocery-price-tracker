@@ -28,6 +28,9 @@ import {
   getAllStores,
   updateStoreInstance,
   getAllCirculars,
+  getDealsForStoreWeek,
+  updateDeal,
+  getDeal,
 } from './db/client';
 import {
   getCurrentWeekId,
@@ -331,6 +334,48 @@ export function createApp() {
       circulars: circulars.map(({ storeInstanceId, weekId, dealCount }) => ({
         storeInstanceId, weekId, dealCount,
       })),
+    });
+  });
+
+  // Elevated trust level to read deals outside a user's normal data boundary
+  app.get('/admin/deals/:instanceId/:weekId', requirePermission('deals:write'), async (c) => {
+    const instanceId = c.req.param('instanceId');
+    const weekId = c.req.param('weekId');
+
+    if (!instanceId || !weekId) {
+      return c.json({ error: 'instanceId and weekId required' }, 400);
+    }
+    const deals = await getDealsForStoreWeek(instanceId, weekId);
+
+    return c.json({
+      weekId,
+      deals,
+      count: deals.length
+    })
+  });
+
+  app.patch('/admin/deals/:instanceId/:weekId/:dealId', requirePermission('deals:write'), async (c) => {
+    const instanceId = c.req.param('instanceId');
+    const weekId = c.req.param('weekId');
+    const dealId = c.req.param('dealId');
+
+    const body = await c.req.json<{ canonicalProductId?: string; dept?: string }>();
+
+    if (!body.canonicalProductId && !body.dept) {
+      return c.json({ error: 'Either canonicalProductId or dept required to update deal' }, 400);
+    }
+
+    const deal = await getDeal(dealId, instanceId, weekId);
+
+    if (!deal) {
+      // 400 because of cloudfront limitations
+      return c.json({ error: 'Deal not found' }, 400)
+    }
+
+    const updatedBy = getAuthUser(c).userId;
+    const updatedDeal = await updateDeal(deal, { canonicalProductId: body.canonicalProductId, dept: body.dept }, updatedBy);
+    return c.json({
+      deal: updatedDeal
     });
   });
 
