@@ -1,7 +1,7 @@
 import { Component, inject, signal, computed, output } from '@angular/core';
 import { DialogModule } from 'primeng/dialog';
 import { StoresService } from '@/app/core/services/stores.service';
-import { StoreType } from '@/app/core/models/store.model';
+import { storeSelectLabel, StoreType } from '@/app/core/models/store.model';
 import { SelectModule } from 'primeng/select';
 import { ButtonModule } from 'primeng/button';
 import { FormsModule } from '@angular/forms';
@@ -138,13 +138,7 @@ export class AddStoreDialog {
   locationOptions = computed<LocationOption[]>(() => {
     return this.availableStores()
       .filter(store => store.enabled)
-      .map(store => {
-        const addr = store.address;
-        const addrStr = addr
-          ? ` — ${addr.addressLine1 ? addr.addressLine1 + ', ' : ''}${addr.city}, ${addr.state}`
-          : '';
-        return { value: store.instanceId, label: store.name + addrStr };
-      });
+      .map(store => ({ value: store.instanceId, label: storeSelectLabel(store) }))
   });
 
   canAddStore = computed(() => {
