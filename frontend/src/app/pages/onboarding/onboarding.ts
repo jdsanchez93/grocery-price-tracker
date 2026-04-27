@@ -15,12 +15,7 @@ import { MessageModule } from 'primeng/message';
 import { StoresService } from '@/app/core/services/stores.service';
 import { ProfileService } from '@/app/core/services/profile.service';
 import { StoreCard } from '@/app/shared/components/store-card/store-card';
-import { StoreType, STORE_TYPE_METADATA, storeSelectLabel } from '@/app/core/models/store.model';
-
-interface LocationOption {
-  value: string;
-  label: string;
-}
+import { StoreType, STORE_TYPE_METADATA, StoreSelectOption, storeSelectOption } from '@/app/core/models/store.model';
 
 @Component({
   selector: 'app-onboarding',
@@ -353,10 +348,10 @@ export class Onboarding {
     }));
   });
 
-  locationOptions = computed<LocationOption[]>(() =>
+  locationOptions = computed<StoreSelectOption[]>(() =>
     this.availableStores()
       .filter(s => s.enabled)
-      .map(s => ({ value: s.instanceId, label: storeSelectLabel(s) }))
+      .map(storeSelectOption)
   );
 
   selectedStore = computed(() => {

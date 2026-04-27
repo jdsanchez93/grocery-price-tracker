@@ -98,6 +98,15 @@ export function storeSelectLabel(store: { name: string; address?: StoreAddress }
   return store.name + addrStr;
 }
 
+export interface StoreSelectOption {
+  value: string; // instanceId
+  label: string;
+}
+
+export function storeSelectOption(store: { instanceId: string; name: string; address?: StoreAddress }): StoreSelectOption {
+  return { value: store.instanceId, label: storeSelectLabel(store) };
+}
+
 export interface StoreAddress {
   addressLine1: string;
   city: string;
