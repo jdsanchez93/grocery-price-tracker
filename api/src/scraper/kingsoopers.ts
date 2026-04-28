@@ -3,8 +3,10 @@ import { KingSoopersIdentifiers, PriceVariant, getWeekIdForDate } from '../types
 import { findCanonicalProductId } from './products';
 import { getKrogerCreds, getScraperWorkerConfig } from '../config';
 import { logger } from '../logger';
+import type { StandardDeal } from './types';
 
 export type { PriceVariant } from '../types/database';
+export type { StandardDeal } from './types';
 
 interface KingSoopersAd {
   id?: string;
@@ -22,20 +24,6 @@ interface KingSoopersAd {
   disclaimer?: string;
   loyaltyIndicator?: string;
   images?: { url: string }[];
-}
-
-export interface StandardDeal {
-  store: string;
-  name: string | undefined;
-  details: string | undefined;
-  dept: string;
-  priceDisplay: string;
-  priceNumber: number | null;
-  quantity: number;
-  loyalty: string | undefined;
-  image: string | undefined;
-  upcs?: string[];
-  priceVariants?: PriceVariant[];
 }
 
 const PRODUCT_URL = "https://api.kroger.com/v1/products";

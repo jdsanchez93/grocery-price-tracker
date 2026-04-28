@@ -22,7 +22,7 @@ import {
   StoreAddress,
   generateStoreInstanceId,
 } from '../types/database';
-import { StandardDeal } from '../scraper/kingsoopers';
+import type { StandardDeal } from '../scraper/types';
 import { normalizeDept } from '../scraper/products';
 
 const client = new DynamoDBClient({});

@@ -1,7 +1,7 @@
 import { writeDeals, writeCircular } from '../db/client';
 import { getCurrentWeekId, SafewayIdentifiers } from '../types/database';
 import { findCanonicalProductId } from './products';
-import { StandardDeal } from './kingsoopers';
+import type { StandardDeal } from './types';
 
 export interface WeeklyAdMetadata {
   circularId: string;
