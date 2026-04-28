@@ -1,4 +1,4 @@
-import { DynamoDBClient, ScanCommand, ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient, ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
   PutCommand,
@@ -171,14 +171,25 @@ export async function getAllStores(): Promise<StoreInstanceItem[]> {
     return storesCacheData;
   }
 
-  const result = await docClient.send(new QueryCommand({
-    TableName: TABLE_NAME,
-    IndexName: 'GSI2',
-    KeyConditionExpression: 'entityType = :et',
-    ExpressionAttributeValues: { ':et': 'STORE_INSTANCE' },
-  }));
+  // Stores are queried via scan rather than GSI2 because StoreInstanceItem has no
+  // weekId attribute (the GSI2 sort key), so store items are not indexed in GSI2.
+  // With ~5 stores this scan is negligible and is cached for 5 minutes.
+  const { ScanCommand: DocScanCommand } = await import('@aws-sdk/lib-dynamodb');
+  const items: StoreInstanceItem[] = [];
+  let lastKey: Record<string, unknown> | undefined;
 
-  storesCacheData = (result.Items || []) as StoreInstanceItem[];
+  do {
+    const result = await docClient.send(new DocScanCommand({
+      TableName: TABLE_NAME,
+      FilterExpression: 'entityType = :et',
+      ExpressionAttributeValues: { ':et': 'STORE_INSTANCE' },
+      ExclusiveStartKey: lastKey,
+    }));
+    items.push(...((result.Items || []) as StoreInstanceItem[]));
+    lastKey = result.LastEvaluatedKey as Record<string, unknown> | undefined;
+  } while (lastKey);
+
+  storesCacheData = items;
   storesCacheTime = Date.now();
   return storesCacheData;
 }

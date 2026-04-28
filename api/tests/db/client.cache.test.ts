@@ -34,15 +34,15 @@ const mockStoreItem = {
   updatedAt: '2024-01-01T00:00:00.000Z',
 };
 
-function queryReturns(items: unknown[] = [mockStoreItem]) {
+function scanReturns(items: unknown[] = [mockStoreItem]) {
   mockSend.mockImplementation((cmd: { _type: string }) => {
-    if (cmd._type === 'QueryCommand') return Promise.resolve({ Items: items });
+    if (cmd._type === 'ScanCommand') return Promise.resolve({ Items: items });
     return Promise.resolve({ Attributes: items[0] });
   });
 }
 
-function queryCalls() {
-  return mockSend.mock.calls.filter(([cmd]) => cmd._type === 'QueryCommand').length;
+function scanCalls() {
+  return mockSend.mock.calls.filter(([cmd]) => cmd._type === 'ScanCommand').length;
 }
 
 describe('getAllStores — module-level cache', () => {
@@ -52,30 +52,30 @@ describe('getAllStores — module-level cache', () => {
   });
 
   it('scans DynamoDB on first call', async () => {
-    queryReturns();
+    scanReturns();
     const { getAllStores } = await import('../../src/db/client');
     await getAllStores();
-    expect(queryCalls()).toBe(1);
+    expect(scanCalls()).toBe(1);
   });
 
   it('returns cached result on second call without re-scanning', async () => {
-    queryReturns();
+    scanReturns();
     const { getAllStores } = await import('../../src/db/client');
     const first = await getAllStores();
     const second = await getAllStores();
-    expect(queryCalls()).toBe(1);
+    expect(scanCalls()).toBe(1);
     expect(second).toStrictEqual(first);
   });
 
   it('re-scans after TTL expires', async () => {
     vi.useFakeTimers();
     try {
-      queryReturns();
+      scanReturns();
       const { getAllStores } = await import('../../src/db/client');
       await getAllStores();
       vi.advanceTimersByTime(5 * 60 * 1000 + 1);
       await getAllStores();
-      expect(queryCalls()).toBe(2);
+      expect(scanCalls()).toBe(2);
     } finally {
       vi.useRealTimers();
     }
@@ -84,43 +84,49 @@ describe('getAllStores — module-level cache', () => {
   it('does not re-scan just before TTL expires', async () => {
     vi.useFakeTimers();
     try {
-      queryReturns();
+      scanReturns();
       const { getAllStores } = await import('../../src/db/client');
       await getAllStores();
       vi.advanceTimersByTime(5 * 60 * 1000 - 1);
       await getAllStores();
-      expect(queryCalls()).toBe(1);
+      expect(scanCalls()).toBe(1);
     } finally {
       vi.useRealTimers();
     }
   });
 
   it('invalidates cache when writeStoreInstance is called', async () => {
-    queryReturns();
+    scanReturns();
     const { getAllStores, writeStoreInstance } = await import('../../src/db/client');
     await getAllStores();                                                      // scan #1
     await writeStoreInstance({ type: 'kingsoopers', storeId: '1', facilityId: '2' }, 'Test');
     await getAllStores();                                                      // scan #2
-    expect(queryCalls()).toBe(2);
+    expect(scanCalls()).toBe(2);
   });
 
   it('invalidates cache when updateStoreInstance is called', async () => {
-    queryReturns();
+    scanReturns();
     const { getAllStores, updateStoreInstance } = await import('../../src/db/client');
     await getAllStores();                                                      // scan #1
     await updateStoreInstance('kingsoopers:abc123', { name: 'New Name' });
     await getAllStores();                                                      // scan #2
-    expect(queryCalls()).toBe(2);
+    expect(scanCalls()).toBe(2);
   });
 
-  it('queries GSI2 by entityType = STORE_INSTANCE', async () => {
-    queryReturns([mockStoreItem]);
+  it('handles paginated scan and returns all pages', async () => {
+    const page1Item = { ...mockStoreItem, instanceId: 'kingsoopers:page1' };
+    const page2Item = { ...mockStoreItem, instanceId: 'kingsoopers:page2' };
+    let callCount = 0;
+    mockSend.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return Promise.resolve({ Items: [page1Item], LastEvaluatedKey: { PK: 'cursor' } });
+      return Promise.resolve({ Items: [page2Item] });
+    });
+
     const { getAllStores } = await import('../../src/db/client');
     const result = await getAllStores();
-    expect(result).toHaveLength(1);
-    expect(result[0].instanceId).toBe('kingsoopers:abc123');
-    const queryCmd = mockSend.mock.calls.find(([cmd]) => cmd._type === 'QueryCommand')?.[0];
-    expect(queryCmd?.input.IndexName).toBe('GSI2');
-    expect(queryCmd?.input.ExpressionAttributeValues[':et']).toBe('STORE_INSTANCE');
+    expect(result).toHaveLength(2);
+    expect(result.map(s => s.instanceId)).toEqual(['kingsoopers:page1', 'kingsoopers:page2']);
+    expect(scanCalls()).toBe(2);
   });
 });
