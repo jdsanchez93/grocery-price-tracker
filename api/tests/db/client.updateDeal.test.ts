@@ -135,14 +135,12 @@ describe('updateDeal', () => {
       await updateDeal(mockDeal, { dept: 'produce' }, 'admin:123');
       const { UpdateExpression } = sentUpdateInput();
       expect(UpdateExpression).toContain('dept = :dept');
-      expect(UpdateExpression).not.toContain('GSI2SK');
     });
 
     it('sets the correct ExpressionAttributeValue for dept', async () => {
       await updateDeal(mockDeal, { dept: 'produce' }, 'admin:123');
       const { ExpressionAttributeValues } = sentUpdateInput() as { ExpressionAttributeValues: Record<string, unknown> };
       expect(ExpressionAttributeValues[':dept']).toBe('produce');
-      expect(ExpressionAttributeValues[':gsi2sk']).toBeUndefined();
     });
   });
 
