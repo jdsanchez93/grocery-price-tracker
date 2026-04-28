@@ -10,7 +10,7 @@
 // UserStore:     PK = USER#<userId>                    SK = STOREINSTANCE#<instanceId>
 
 // GSI1 (Price History): GSI1PK = PRODUCT#<id>  GSI1SK = <date>#<instanceId>
-// GSI2 (Browse):        GSI2PK = WEEK#<week>   GSI2SK = STORE#<instanceId>#DEPT#<dept>
+// GSI2 (Entity Type):   GSI2PK = entityType     GSI2SK = weekId
 
 // Store instance ID format: {storeType}:{hash}
 // Example: kingsoopers:a1b2c3d4
@@ -63,8 +63,6 @@ export interface BaseItem {
   SK: string;
   GSI1PK?: string;
   GSI1SK?: string;
-  GSI2PK?: string;
-  GSI2SK?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -187,11 +185,6 @@ export const Keys = {
     // Price history: query by product across stores/dates
     pk: (canonicalProductId: string) => `PRODUCT#${canonicalProductId}`,
     sk: (weekId: string, storeInstanceId: string) => `${weekId}#${storeInstanceId}`,
-  },
-  gsi2: {
-    // Browse: query by week, filter by store/dept
-    pk: (weekId: string) => `WEEK#${weekId}`,
-    sk: (storeInstanceId: string, dept: string) => `STORE#${storeInstanceId}#DEPT#${dept}`,
   },
 };
 

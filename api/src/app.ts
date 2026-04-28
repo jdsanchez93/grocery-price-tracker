@@ -27,6 +27,7 @@ import {
   deleteCircularAndDeals,
   getAllStores,
   updateStoreInstance,
+  getAllCirculars,
 } from './db/client';
 import {
   getCurrentWeekId,
@@ -322,6 +323,15 @@ export function createApp() {
         return c.json({ error: 'Unknown store type' }, 400);
       }
     }
+  });
+
+  app.get('/admin/circulars', requirePermission('deals:write'), async (c) => {
+    const circulars = await getAllCirculars();
+    return c.json({
+      circulars: circulars.map(({ storeInstanceId, weekId, dealCount }) => ({
+        storeInstanceId, weekId, dealCount,
+      })),
+    });
   });
 
   // ===================

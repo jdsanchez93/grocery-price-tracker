@@ -35,6 +35,11 @@ let storesCacheData: StoreInstanceItem[] | null = null;
 let storesCacheTime = 0;
 function invalidateStoresCache(): void { storesCacheData = null; storesCacheTime = 0; }
 
+const CIRCULARS_CACHE_TTL_MS = 5 * 60 * 1000;
+let circularsCacheData: CircularItem[] | null = null;
+let circularsCacheTime = 0;
+function invalidateCircularsCache(): void { circularsCacheData = null; circularsCacheTime = 0; }
+
 // Generate a unique deal ID from deal content using SHA-256 (truncated)
 function generateDealId(deal: StandardDeal): string {
   const normalized = `${deal.name || ''}-${deal.priceDisplay}-${deal.dept}-${deal.details || ''}-${deal.image || ''}`.toLowerCase();
@@ -78,9 +83,6 @@ export async function writeDeal(
       GSI1PK: Keys.gsi1.pk(canonicalProductId),
       GSI1SK: Keys.gsi1.sk(weekId, storeInstanceId),
     }),
-    // GSI2 for browsing by week
-    GSI2PK: Keys.gsi2.pk(weekId),
-    GSI2SK: Keys.gsi2.sk(storeInstanceId, deal.dept ? normalizeDept(deal.dept, deal.name) : 'uncategorized'),
   };
 
   await docClient.send(new PutCommand({
@@ -131,8 +133,6 @@ export async function writeDeals(
           GSI1PK: Keys.gsi1.pk(canonicalProductId),
           GSI1SK: Keys.gsi1.sk(weekId, storeInstanceId),
         }),
-        GSI2PK: Keys.gsi2.pk(weekId),
-        GSI2SK: Keys.gsi2.sk(storeInstanceId, deal.dept ? normalizeDept(deal.dept, deal.name) : 'uncategorized'),
       };
 
       return { PutRequest: { Item: item } };
@@ -162,19 +162,6 @@ export async function getDealsForStoreWeek(
   return (result.Items || []) as DealItem[];
 }
 
-export async function getDealsForWeek(weekId: string = getCurrentWeekId()): Promise<DealItem[]> {
-  const result = await docClient.send(new QueryCommand({
-    TableName: TABLE_NAME,
-    IndexName: 'GSI2',
-    KeyConditionExpression: 'GSI2PK = :pk',
-    ExpressionAttributeValues: {
-      ':pk': Keys.gsi2.pk(weekId),
-    },
-  }));
-
-  return (result.Items || []) as DealItem[];
-}
-
 // ===================
 // Store Instances
 // ===================
@@ -184,27 +171,36 @@ export async function getAllStores(): Promise<StoreInstanceItem[]> {
     return storesCacheData;
   }
 
-  const { ScanCommand } = await import('@aws-sdk/lib-dynamodb');
-  const items: StoreInstanceItem[] = [];
-  let lastKey: Record<string, unknown> | undefined;
+  const result = await docClient.send(new QueryCommand({
+    TableName: TABLE_NAME,
+    IndexName: 'GSI2',
+    KeyConditionExpression: 'entityType = :et',
+    ExpressionAttributeValues: { ':et': 'STORE_INSTANCE' },
+  }));
 
-  do {
-    const result = await docClient.send(new ScanCommand({
-      TableName: TABLE_NAME,
-      FilterExpression: 'entityType = :entityType',
-      ExpressionAttributeValues: {
-        ':entityType': 'STORE_INSTANCE',
-      },
-      ExclusiveStartKey: lastKey,
-    }));
-    items.push(...((result.Items || []) as StoreInstanceItem[]));
-    lastKey = result.LastEvaluatedKey as Record<string, unknown> | undefined;
-  } while (lastKey);
-
-  storesCacheData = items;
+  storesCacheData = (result.Items || []) as StoreInstanceItem[];
   storesCacheTime = Date.now();
-  return items;
+  return storesCacheData;
 }
+
+export async function getAllCirculars(): Promise<CircularItem[]> {
+  const now = Date.now();
+  if (circularsCacheData !== null && now - circularsCacheTime < CIRCULARS_CACHE_TTL_MS) {
+    return circularsCacheData;
+  }
+
+  const result = await docClient.send(new QueryCommand({
+    TableName: TABLE_NAME,
+    IndexName: 'GSI2',
+    KeyConditionExpression: 'entityType = :et',
+    ExpressionAttributeValues: { ':et': 'CIRCULAR' },
+  }));
+
+  circularsCacheData = (result.Items || []) as CircularItem[];
+  circularsCacheTime = Date.now();
+  return circularsCacheData;
+}
+
 export async function getStoreInstance(instanceId: string): Promise<StoreInstanceItem | null> {
   const result = await docClient.send(new GetCommand({
     TableName: TABLE_NAME,
@@ -477,6 +473,7 @@ export async function writeCircular(
   endDate: string,
   dealCount: number
 ): Promise<void> {
+  invalidateCircularsCache();
   const now = new Date().toISOString();
 
   const item: CircularItem = {
