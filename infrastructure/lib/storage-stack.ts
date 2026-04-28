@@ -30,13 +30,14 @@ export class StorageStack extends cdk.Stack {
       projectionType: dynamodb.ProjectionType.ALL,
     });
 
-    // GSI2: Browse by Week
-    // Query pattern: Browse current week's deals by store/department
-    // GSI2PK = WEEK#<week>, GSI2SK = STORE#<instanceId>#DEPT#<dept>
+    // GSI2: Browse by Entity Type
+    // Query pattern: Get all items of a given entityType, optionally filtered by weekId
+    // entityType = 'CIRCULAR' → all circulars (used for admin week picker)
+    // entityType = 'STORE_INSTANCE' → all stores (replaces full-table scan in getAllStores)
     this.dealsTable.addGlobalSecondaryIndex({
       indexName: 'GSI2',
-      partitionKey: { name: 'GSI2PK', type: dynamodb.AttributeType.STRING },
-      sortKey: { name: 'GSI2SK', type: dynamodb.AttributeType.STRING },
+      partitionKey: { name: 'entityType', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'weekId', type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.ALL,
     });
 

@@ -127,6 +127,6 @@ describe('getAllStores — module-level cache', () => {
     const result = await getAllStores();
     expect(result).toHaveLength(2);
     expect(result.map(s => s.instanceId)).toEqual(['kingsoopers:page1', 'kingsoopers:page2']);
-    expect(scanCalls()).toBe(2); // two pages fetched
+    expect(scanCalls()).toBe(2);
   });
 });
