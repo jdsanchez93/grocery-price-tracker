@@ -4,6 +4,7 @@ import {
   PutCommand,
   GetCommand,
   QueryCommand,
+  ScanCommand,
   DeleteCommand,
   BatchWriteCommand,
   UpdateCommand,
@@ -174,12 +175,11 @@ export async function getAllStores(): Promise<StoreInstanceItem[]> {
   // Stores are queried via scan rather than GSI2 because StoreInstanceItem has no
   // weekId attribute (the GSI2 sort key), so store items are not indexed in GSI2.
   // With ~5 stores this scan is negligible and is cached for 5 minutes.
-  const { ScanCommand: DocScanCommand } = await import('@aws-sdk/lib-dynamodb');
   const items: StoreInstanceItem[] = [];
   let lastKey: Record<string, unknown> | undefined;
 
   do {
-    const result = await docClient.send(new DocScanCommand({
+    const result = await docClient.send(new ScanCommand({
       TableName: TABLE_NAME,
       FilterExpression: 'entityType = :et',
       ExpressionAttributeValues: { ':et': 'STORE_INSTANCE' },
