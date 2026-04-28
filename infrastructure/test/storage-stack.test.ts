@@ -51,8 +51,8 @@ describe('StorageStack', () => {
         Match.objectLike({
           IndexName: 'GSI2',
           KeySchema: [
-            { AttributeName: 'GSI2PK', KeyType: 'HASH' },
-            { AttributeName: 'GSI2SK', KeyType: 'RANGE' },
+            { AttributeName: 'entityType', KeyType: 'HASH' },
+            { AttributeName: 'weekId', KeyType: 'RANGE' },
           ],
           Projection: { ProjectionType: 'ALL' },
         }),
