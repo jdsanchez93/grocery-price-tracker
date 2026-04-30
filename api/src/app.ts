@@ -331,8 +331,8 @@ export function createApp() {
   app.get('/admin/circulars', requirePermission('deals:write'), async (c) => {
     const circulars = await getAllCirculars();
     return c.json({
-      circulars: circulars.map(({ storeInstanceId, weekId, dealCount }) => ({
-        storeInstanceId, weekId, dealCount,
+      circulars: circulars.map(({ storeInstanceId, weekId, dealCount, startDate, endDate }) => ({
+        storeInstanceId, weekId, dealCount, startDate, endDate
       })),
     });
   });
