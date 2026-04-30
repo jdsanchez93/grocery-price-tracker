@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, type MockInstance, beforeEach, afterEach } from 'vitest';
-import { standardizeKingSoopersAd, StandardDeal, fetchWeeklyDeals, _resetTokenCache, _getKrogerPriceVariants, _fetchProductPrices, _fetchProductPricesByTerm, _resolveBogoFromWorkerData } from '../../src/scraper/kingsoopers';
+import { standardizeKingSoopersAd, StandardDeal, fetchWeeklyDeals, _resetTokenCache, _getKrogerPriceVariants, _fetchProductPrices, _fetchProductPricesByTerm, _resolveBogoFromWorkerData, _krogerDatesToPlain } from '../../src/scraper/kingsoopers';
 
 vi.mock('../../src/config', () => ({
   getKrogerCreds: vi.fn().mockResolvedValue({
@@ -1099,5 +1099,38 @@ describe('_fetchProductPricesByTerm', () => {
     expect(searchedTerms).toHaveLength(1);
     expect(searchedTerms[0]).toBe('Tillamook Ice Cream');
     expect(Object.keys(result)).toHaveLength(2);
+  });
+});
+
+describe('_krogerDatesToPlain', () => {
+  it('passes plain dates through unchanged', () => {
+    const result = _krogerDatesToPlain('2026-01-27', '2026-02-03');
+    expect(result).toEqual({ startDate: '2026-01-27', endDate: '2026-02-03' });
+  });
+
+  it('converts Mountain Standard Time ISO timestamps (UTC-7)', () => {
+    // King Soopers in Colorado: midnight MST = T07:00:00Z
+    const result = _krogerDatesToPlain('2026-02-18T07:00:00Z', '2026-02-25T06:59:59Z');
+    expect(result).toEqual({ startDate: '2026-02-18', endDate: '2026-02-24' });
+  });
+
+  it('converts Mountain Daylight Time ISO timestamps (UTC-6)', () => {
+    // Summer — MDT shifts to T06:00:00Z
+    const result = _krogerDatesToPlain('2026-04-29T06:00:00Z', '2026-05-06T05:59:59Z');
+    expect(result).toEqual({ startDate: '2026-04-29', endDate: '2026-05-05' });
+  });
+
+  it('converts Pacific Standard Time ISO timestamps (UTC-8)', () => {
+    // Hypothetical Ralphs in California: midnight PST = T08:00:00Z
+    const result = _krogerDatesToPlain('2026-02-18T08:00:00Z', '2026-02-25T07:59:59Z');
+    expect(result).toEqual({ startDate: '2026-02-18', endDate: '2026-02-24' });
+  });
+
+  it('endDate date part alone would be wrong without timezone correction', () => {
+    // Demonstrates why split("T")[0] is insufficient for endDate:
+    // raw UTC date of endDate is the 25th, but the correct local date is the 24th
+    const { endDate } = _krogerDatesToPlain('2026-02-18T07:00:00Z', '2026-02-25T06:59:59Z');
+    expect(endDate).toBe('2026-02-24');
+    expect(endDate).not.toBe('2026-02-25');
   });
 });

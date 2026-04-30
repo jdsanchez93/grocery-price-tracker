@@ -454,8 +454,8 @@ export async function fetchAndPersistWeeklyDeals(
   const { deals, circularId, circularDates } = await fetchWeeklyDeals(identifiers);
   logger.info({ duration_ms: Date.now() - t, dealCount: deals.length, storeInstanceId }, 'fetchWeeklyDeals complete');
 
-  const localDate = new Date(circularDates.startDate.split('T')[0] + 'T12:00:00');
-  const weekId = getWeekIdForDate(localDate);
+  const { startDate, endDate } = _krogerDatesToPlain(circularDates.startDate, circularDates.endDate);
+  const weekId = getWeekIdForDate(new Date(startDate + 'T12:00:00'));
 
   // Deduplication check
   const existingCircular = await getCircular(storeInstanceId, weekId);
@@ -490,10 +490,29 @@ export async function fetchAndPersistWeeklyDeals(
     storeInstanceId,
     weekId,
     circularId,
-    circularDates.startDate,
-    circularDates.endDate,
+    startDate,
+    endDate,
     deals.length
   );
 
   return { deals, persisted: true, alreadyScraped: false, circularId, circularDates, weekId, deletedCount };
+}
+
+/** @internal Exported for testing */
+export function _krogerDatesToPlain(
+  startIso: string,
+  endIso: string
+): { startDate: string; endDate: string } {
+  // Non-Kroger scrapers (safeway) already return plain dates
+  if (!startIso.includes('T')) return { startDate: startIso, endDate: endIso };
+
+  // Midnight local = startDate's UTC hour tells us the store's UTC offset
+  const offsetMinutes = -new Date(startIso).getUTCHours() * 60;
+
+  const toPlain = (iso: string) => {
+    const localMs = new Date(iso).getTime() + offsetMinutes * 60_000;
+    return new Date(localMs).toISOString().split('T')[0];
+  };
+
+  return { startDate: toPlain(startIso), endDate: toPlain(endIso) };
 }
