@@ -32,7 +32,7 @@ describe('ScrapeManagement', () => {
   let component: ScrapeManagement;
   let fixture: ComponentFixture<ScrapeManagement>;
   let adminServiceMock: Record<string, ReturnType<typeof vi.fn>>;
-  let messageServiceMock: Partial<MessageService>;
+  let messageServiceAdd: ReturnType<typeof vi.spyOn>;
 
   beforeEach(async () => {
     adminServiceMock = {
@@ -41,25 +41,17 @@ describe('ScrapeManagement', () => {
       autoScrapeStore: vi.fn().mockReturnValue(of(mockScrapeResponse)),
     };
 
-    messageServiceMock = {
-      add: vi.fn(),
-      messageObserver: new Subject(),
-      clearObserver: new Subject(),
-    };
-
     await TestBed.configureTestingModule({
       imports: [ScrapeManagement],
       providers: [
         { provide: AdminService, useValue: adminServiceMock },
+        MessageService,
       ],
-    })
-    .overrideComponent(ScrapeManagement, {
-      set: { providers: [{ provide: MessageService, useValue: messageServiceMock }] },
-    })
-    .compileComponents();
+    }).compileComponents();
 
     fixture = TestBed.createComponent(ScrapeManagement);
     component = fixture.componentInstance;
+    messageServiceAdd = vi.spyOn(TestBed.inject(MessageService), 'add');
     fixture.detectChanges();
   });
 
@@ -176,26 +168,31 @@ describe('ScrapeManagement', () => {
     it('should show success toast via MessageService', () => {
       component.scrapeStore('safeway:456');
 
-      expect(messageServiceMock['add']).toHaveBeenCalledWith({
+      expect(messageServiceAdd).toHaveBeenCalledWith({
         severity: 'success',
         summary: 'Success',
         detail: 'safeway:456 has been scraped successfully.',
       });
     });
 
-    it('should show error toast on failure', () => {
+    it('should clear scrapingInProgress on failure', () => {
       adminServiceMock['autoScrapeStore'].mockReturnValue(
         throwError(() => new Error('Network failure'))
       );
 
       component.scrapeStore('safeway:456');
 
-      expect(messageServiceMock['add']).toHaveBeenCalledWith({
-        severity: 'error',
-        summary: 'Scraping error',
-        detail: 'Network failure',
-      });
       expect(component.scrapingInProgress().has('safeway:456')).toBe(false);
+    });
+
+    it('should not show an error toast on failure (interceptor handles HTTP errors)', () => {
+      adminServiceMock['autoScrapeStore'].mockReturnValue(
+        throwError(() => new Error('Network failure'))
+      );
+
+      component.scrapeStore('safeway:456');
+
+      expect(messageServiceAdd).not.toHaveBeenCalled();
     });
   });
 });

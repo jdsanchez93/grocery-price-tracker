@@ -7,7 +7,6 @@ import { InputTextModule } from 'primeng/inputtext';
 import { MessageService } from 'primeng/api';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
-import { ToastModule } from 'primeng/toast';
 import { AdminService, CreateStoreRequest, UpdateStoreRequest } from '../../../core/services/admin.service';
 import { AvailableStore, STORE_FIELD_CONFIGS, STORE_TYPE_METADATA, StoreType } from '../../../core/models/store.model';
 import { FieldControlService } from './field-control.service';
@@ -16,7 +15,6 @@ import { DynamicFormField } from './dynamic-form-field/dynamic-form-field';
 @Component({
   selector: 'app-configure-stores',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [MessageService],
   imports: [
     ReactiveFormsModule,
     FormsModule,
@@ -24,7 +22,6 @@ import { DynamicFormField } from './dynamic-form-field/dynamic-form-field';
     InputTextModule,
     TableModule,
     ButtonModule,
-    ToastModule,
     FluidModule,
     DialogModule,
     DynamicFormField,
@@ -135,8 +132,7 @@ export class ConfigureStores implements OnInit {
         this.addressForm.reset();
         this.submitting.set(false);
       },
-      error: (err) => {
-        this.messageService.add({ severity: 'error', summary: 'Error', detail: err.message ?? 'Failed to create store' });
+      error: () => {
         this.submitting.set(false);
       },
     });
@@ -184,8 +180,7 @@ export class ConfigureStores implements OnInit {
         this.editDialogVisible.set(false);
         this.editSubmitting.set(false);
       },
-      error: (err) => {
-        this.messageService.add({ severity: 'error', summary: 'Error', detail: err.message ?? 'Failed to update store' });
+      error: () => {
         this.editSubmitting.set(false);
       },
     });

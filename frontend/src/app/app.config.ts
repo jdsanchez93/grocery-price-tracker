@@ -7,11 +7,13 @@ import Aura from '@primeuix/themes/aura';
 
 import { routes } from './app.routes';
 import { environment } from '@/environments/environment';
+import { MessageService } from 'primeng/api';
+import { errorInterceptor } from './core/interceptors/error.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
-    provideHttpClient(withInterceptors([authHttpInterceptorFn])),
+    provideHttpClient(withInterceptors([authHttpInterceptorFn, errorInterceptor])),
     provideRouter(routes),
     providePrimeNG({ theme: { preset: Aura, options: { darkModeSelector: '.app-dark' } } }),
     provideAuth0({
@@ -25,6 +27,7 @@ export const appConfig: ApplicationConfig = {
       httpInterceptor: {
         allowedList: [`${environment.apiUrl}/*`]
       }
-    })
+    }),
+    MessageService
   ]
 };

@@ -4,6 +4,7 @@ import { AuthService } from '@auth0/auth0-angular';
 import { BehaviorSubject } from 'rxjs';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
+import { MessageService } from 'primeng/api';
 
 describe('App', () => {
   let component: App;
@@ -21,6 +22,7 @@ describe('App', () => {
       providers: [
         { provide: AuthService, useValue: authMock },
         provideRouter([]),
+        MessageService,
       ]
     }).compileComponents();
 
@@ -56,6 +58,12 @@ describe('App', () => {
 
     const outlet = fixture.debugElement.query(By.css('router-outlet'));
     expect(outlet).toBeTruthy();
+  });
+
+  it('should render p-toast for global error notifications', () => {
+    fixture.detectChanges();
+    const toast = fixture.debugElement.query(By.css('p-toast'));
+    expect(toast).toBeTruthy();
   });
 
   it('should transition from loading to done', () => {
