@@ -4,6 +4,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { AvailableStore, StoreAddress, StoreType } from '../models/store.model';
 import { AutoScrapeResponse, ScrapeStatusResponse } from '../models/admin.model';
+import { DealsResponse } from '../models/deal.model';
 
 export interface CreateStoreRequest {
   type: StoreType;
@@ -29,6 +30,17 @@ export interface UpdateStoreResponse {
   store: AvailableStore;
 }
 
+export interface Circular {
+  storeInstanceId: string;
+  weekId: string;
+  dealCount: number;
+  startDate: string;
+  endDate: string;
+}
+export interface CircularResponse {
+  circulars: Circular[];
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -46,7 +58,7 @@ export class AdminService {
   }
 
   getScrapeStatus(instanceIds: string[]): Observable<ScrapeStatusResponse> {
-    return this.http.get<ScrapeStatusResponse>(`${environment.apiUrl}/admin/scrape/status`, {params: {'instanceIds': instanceIds.join(',')}});
+    return this.http.get<ScrapeStatusResponse>(`${environment.apiUrl}/admin/scrape/status`, { params: { 'instanceIds': instanceIds.join(',') } });
   }
 
   createStore(data: CreateStoreRequest): Observable<CreateStoreResponse> {
@@ -55,5 +67,15 @@ export class AdminService {
 
   updateStore(instanceId: string, data: UpdateStoreRequest): Observable<UpdateStoreResponse> {
     return this.http.patch<UpdateStoreResponse>(`${environment.apiUrl}/admin/stores/${instanceId}`, data);
+  }
+
+  getHistoricalDeals(instanceId: string, weekId: string): Observable<DealsResponse> {
+    return this.http.get<DealsResponse>(`${environment.apiUrl}/admin/deals/${instanceId}/${weekId}`);
+  }
+
+  getAllCirculars(): Observable<Circular[]> {
+    return this.http.get<CircularResponse>(`${environment.apiUrl}/admin/circulars`).pipe(
+      map(response => response.circulars)
+    );
   }
 }

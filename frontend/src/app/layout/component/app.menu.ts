@@ -47,6 +47,7 @@ export class AppMenu {
             items: [
                 { label: 'Scrape', icon: 'pi pi-fw pi-download', routerLink: ['/admin/scrape-management'] },
                 { label: 'Configure Stores', icon: 'pi pi-fw pi-address-book', routerLink: ['/admin/configure-stores'] },
+                { label: 'Deals Editor', icon: 'pi pi-fw pi-database', routerLink: ['/admin/edit-deals'] }
             ]
         }] : [])
     ]);

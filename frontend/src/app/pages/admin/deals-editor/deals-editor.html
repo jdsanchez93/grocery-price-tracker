@@ -1,0 +1,27 @@
+<div class="card">
+    <h2 class="text-xl font-semibold mb-4">Deals Editor</h2>
+    <p-fluid>
+        <fieldset class="filter-fieldset">
+            <legend>Browse by Store &amp; Week</legend>
+            <div class="flex flex-col gap-4">
+
+                <div class="flex flex-col gap-1">
+                    <label for="storeInstance">Store</label>
+                    <p-select inputId="storeInstance" [options]="storeOptions()" [(ngModel)]="selectedStoreId"
+                        placeholder="Select store" [disabled]="loadingMeta()" />
+                </div>
+
+                <div class="flex flex-col gap-1">
+                    <label for="weekId">Week</label>
+                    <p-select inputId="weekId" [options]="availableWeeks()" [(ngModel)]="selectedWeekId"
+                        placeholder="Select week" [disabled]="!selectedStoreId() || loadingMeta()" />
+                </div>
+
+            </div>
+        </fieldset>
+    </p-fluid>
+</div>
+
+@if (selection()) {
+<app-deals-table [deals]="deals()" [columns]="columns()" [loading]="loadingDeals()" />
+}
