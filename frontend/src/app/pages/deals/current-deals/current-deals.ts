@@ -42,7 +42,6 @@ export class CurrentDeals {
       sortable: true,
       filterType: 'multiselect',
       filterField: 'storeInstanceId',
-      filterOptions: this.dealsService.storeOptions(),
       style: { width: '80px' }
     },
     {
@@ -56,7 +55,6 @@ export class CurrentDeals {
       header: 'Department',
       sortable: true,
       filterType: 'multiselect',
-      filterOptions: this.dealsService.departmentOptions()
     },
     {
       field: 'priceDisplay',

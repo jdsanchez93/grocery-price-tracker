@@ -218,23 +218,6 @@ describe('DealsService', () => {
       httpCtrl.verify();
     });
 
-    it('storeInstanceIds should deduplicate', () => {
-      service.loadDeals();
-      const req = httpCtrl.expectOne(`${API}/me/deals`);
-      req.flush({
-        weekId: '2026-W04',
-        deals: [
-          makeDeal({ dealId: '1', storeInstanceId: 'kingsoopers:a' }),
-          makeDeal({ dealId: '2', storeInstanceId: 'kingsoopers:a' }),
-          makeDeal({ dealId: '3', storeInstanceId: 'safeway:b' }),
-        ],
-        count: 3,
-      });
-
-      expect(service.storeInstanceIds()).toEqual(['kingsoopers:a', 'safeway:b']);
-      httpCtrl.verify();
-    });
-
     it('departments should be sorted and unique', () => {
       service.loadDeals();
       const req = httpCtrl.expectOne(`${API}/me/deals`);
@@ -252,17 +235,5 @@ describe('DealsService', () => {
       httpCtrl.verify();
     });
 
-    it('storeOptions should map ids to display names', () => {
-      const opts = service.storeOptions();
-      expect(opts.length).toBeGreaterThan(0);
-      expect(opts[0]).toHaveProperty('value');
-      expect(opts[0]).toHaveProperty('label');
-    });
-
-    it('departmentOptions should map departments to value/label pairs', () => {
-      const opts = service.departmentOptions();
-      expect(opts.length).toBeGreaterThan(0);
-      expect(opts[0].value).toBe(opts[0].label);
-    });
   });
 });

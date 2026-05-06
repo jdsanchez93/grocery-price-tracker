@@ -25,22 +25,16 @@ describe('CurrentDeals', () => {
 
   const mockDeals = signal<Deal[]>([]);
   const mockLoading = signal(false);
-  const mockStoreOptions = signal<{ value: string; label: string }[]>([]);
-  const mockDepartmentOptions = signal<{ value: string; label: string }[]>([]);
   let user$: BehaviorSubject<Record<string, unknown> | null | undefined>;
 
   const mockDealsService = {
     deals: mockDeals.asReadonly(),
     loading: mockLoading.asReadonly(),
-    storeOptions: mockStoreOptions.asReadonly(),
-    departmentOptions: mockDepartmentOptions.asReadonly(),
   };
 
   beforeEach(async () => {
     mockDeals.set([]);
     mockLoading.set(false);
-    mockStoreOptions.set([]);
-    mockDepartmentOptions.set([]);
     user$ = new BehaviorSubject<Record<string, unknown> | null | undefined>(null);
 
     await TestBed.configureTestingModule({
@@ -112,20 +106,9 @@ describe('CurrentDeals', () => {
       expect(loyaltyCol.style).toEqual({ width: '60px' });
     });
 
-    it('should populate store filterOptions from service', () => {
-      const opts = [{ value: 'kingsoopers:a', label: 'King Soopers' }];
-      mockStoreOptions.set(opts);
-
+    it('should configure store column with storeInstanceId as filter field', () => {
       const storeCol = component.columns().find(c => c.field === 'store')!;
-      expect(storeCol.filterOptions).toEqual(opts);
-    });
-
-    it('should populate department filterOptions from service', () => {
-      const opts = [{ value: 'Produce', label: 'Produce' }];
-      mockDepartmentOptions.set(opts);
-
-      const deptCol = component.columns().find(c => c.field === 'dept')!;
-      expect(deptCol.filterOptions).toEqual(opts);
+      expect(storeCol.filterField).toBe('storeInstanceId');
     });
   });
 

@@ -22,7 +22,6 @@ export interface DealColumnConfig {
   sortable?: boolean;
   filterType?: 'text' | 'multiselect';
   filterField?: string;
-  filterOptions?: { value: string; label: string }[];
   style?: Record<string, string>;
 }
 
@@ -72,6 +71,36 @@ export class DealsTable {
   hasExpandableRows = computed(() =>
     this.deals().some(d => d.priceVariants && d.priceVariants.length > 0)
   );
+
+  /**
+   * Auto-derives multiselect filter options from the current deals for any
+   * column that uses filterType='multiselect'. Keyed by the effective filter 
+   * field (col.filterField ?? col.field). The store column gets human-readable 
+   * labels via getStoreDisplayName.
+   */
+  derivedFilterOptions = computed(() => {
+    const result = new Map<string, { value: string; label: string }[]>();
+    for (const col of this.columns()) {
+      if (col.filterType !== 'multiselect') continue;
+      const field = col.filterField ?? col.field;
+      const seen = new Set<string>();
+      const opts: { value: string; label: string }[] = [];
+      for (const deal of this.deals()) {
+        const raw = field === 'storeInstanceId'
+          ? deal.storeInstanceId
+          : String((deal as any)[field] ?? '');
+        if (raw && !seen.has(raw)) {
+          seen.add(raw);
+          opts.push({
+            value: raw,
+            label: field === 'storeInstanceId' ? this.getStoreDisplayName(raw) : raw,
+          });
+        }
+      }
+      result.set(field, opts.sort((a, b) => a.label.localeCompare(b.label)));
+    }
+    return result;
+  });
 
   expandedColspan = computed(() =>
     this.columns().length

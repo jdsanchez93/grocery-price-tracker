@@ -151,7 +151,6 @@ export class DealsEditor {
       sortable: true,
       filterType: 'multiselect',
       filterField: 'storeInstanceId',
-      // filterOptions: this.dealsService.storeOptions(),
       style: { width: '80px' }
     },
     {
@@ -165,7 +164,6 @@ export class DealsEditor {
       header: 'Department',
       sortable: true,
       filterType: 'multiselect',
-      // filterOptions: this.dealsService.departmentOptions()
     },
     {
       field: 'priceDisplay',

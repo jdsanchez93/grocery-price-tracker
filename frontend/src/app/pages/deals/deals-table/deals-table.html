@@ -92,7 +92,7 @@
               <p-columnFilter [field]="col.filterField ?? col.field" matchMode="in" [showMenu]="false">
                 <ng-template #filter let-filter="filterCallback">
                   <p-multiSelect
-                    [options]="col.filterOptions ?? []"
+                    [options]="derivedFilterOptions().get(col.filterField ?? col.field) ?? []"
                     [placeholder]="'All'"
                     (onChange)="filter($event.value)"
                     optionLabel="label"

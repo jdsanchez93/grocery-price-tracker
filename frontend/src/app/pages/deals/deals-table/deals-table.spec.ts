@@ -280,6 +280,109 @@ describe('DealsTable', () => {
     });
   });
 
+  describe('derivedFilterOptions', () => {
+    it('returns an empty map when no columns use multiselect', () => {
+      const textOnlyCols: DealColumnConfig[] = [
+        { field: 'name', header: 'Name', filterType: 'text' },
+      ];
+      fixture.componentRef.setInput('columns', textOnlyCols);
+      fixture.detectChanges();
+      expect(component.derivedFilterOptions().size).toBe(0);
+    });
+
+    it('derives dept options from the deals in the current data set', () => {
+      const deptOnlyCol: DealColumnConfig[] = [
+        { field: 'dept', header: 'Department', filterType: 'multiselect' },
+      ];
+      fixture.componentRef.setInput('columns', deptOnlyCol);
+      fixture.componentRef.setInput('deals', [
+        makeDeal({ dealId: 'd1', dept: 'produce' }),
+        makeDeal({ dealId: 'd2', dept: 'dairy' }),
+        makeDeal({ dealId: 'd3', dept: 'produce' }), // duplicate
+      ]);
+      fixture.detectChanges();
+
+      const opts = component.derivedFilterOptions().get('dept');
+      expect(opts).toBeDefined();
+      expect(opts!.map(o => o.value)).toEqual(['dairy', 'produce']); // sorted
+    });
+
+    it('uses getStoreDisplayName as the label for storeInstanceId field', () => {
+      const storeCol: DealColumnConfig[] = [
+        { field: 'store', header: 'Store', filterType: 'multiselect', filterField: 'storeInstanceId' },
+      ];
+      fixture.componentRef.setInput('columns', storeCol);
+      fixture.componentRef.setInput('deals', [
+        makeDeal({ dealId: 'd1', storeInstanceId: 'kingsoopers:a' }),
+        makeDeal({ dealId: 'd2', storeInstanceId: 'safeway:b' }),
+      ]);
+      fixture.detectChanges();
+
+      const opts = component.derivedFilterOptions().get('storeInstanceId');
+      expect(opts).toBeDefined();
+      const ks = opts!.find(o => o.value === 'kingsoopers:a');
+      expect(ks?.label).toBe(component.getStoreDisplayName('kingsoopers:a'));
+      expect(ks?.label).not.toBe('kingsoopers:a'); // not raw instanceId
+    });
+
+    it('sorts options alphabetically by label', () => {
+      const deptCol: DealColumnConfig[] = [
+        { field: 'dept', header: 'Department', filterType: 'multiselect' },
+      ];
+      fixture.componentRef.setInput('columns', deptCol);
+      fixture.componentRef.setInput('deals', [
+        makeDeal({ dealId: 'd1', dept: 'snacks' }),
+        makeDeal({ dealId: 'd2', dept: 'bakery' }),
+        makeDeal({ dealId: 'd3', dept: 'produce' }),
+      ]);
+      fixture.detectChanges();
+
+      const labels = component.derivedFilterOptions().get('dept')!.map(o => o.label);
+      expect(labels).toEqual([...labels].sort());
+    });
+
+    it('deduplicates values', () => {
+      const deptCol: DealColumnConfig[] = [
+        { field: 'dept', header: 'Department', filterType: 'multiselect' },
+      ];
+      fixture.componentRef.setInput('columns', deptCol);
+      fixture.componentRef.setInput('deals', [
+        makeDeal({ dealId: 'd1', dept: 'produce' }),
+        makeDeal({ dealId: 'd2', dept: 'produce' }),
+        makeDeal({ dealId: 'd3', dept: 'produce' }),
+      ]);
+      fixture.detectChanges();
+
+      expect(component.derivedFilterOptions().get('dept')).toHaveLength(1);
+    });
+
+    it('returns empty options for a column when deals array is empty', () => {
+      const deptCol: DealColumnConfig[] = [
+        { field: 'dept', header: 'Department', filterType: 'multiselect' },
+      ];
+      fixture.componentRef.setInput('columns', deptCol);
+      fixture.componentRef.setInput('deals', []);
+      fixture.detectChanges();
+
+      expect(component.derivedFilterOptions().get('dept')).toEqual([]);
+    });
+
+    it('excludes entries with empty string values', () => {
+      const deptCol: DealColumnConfig[] = [
+        { field: 'dept', header: 'Department', filterType: 'multiselect' },
+      ];
+      fixture.componentRef.setInput('columns', deptCol);
+      fixture.componentRef.setInput('deals', [
+        makeDeal({ dealId: 'd1', dept: 'produce' }),
+        makeDeal({ dealId: 'd2', dept: '' }),
+      ]);
+      fixture.detectChanges();
+
+      const opts = component.derivedFilterOptions().get('dept')!;
+      expect(opts.every(o => o.value !== '')).toBe(true);
+    });
+  });
+
   describe('onGlobalFilter', () => {
     it('should call table.filterGlobal with input value', () => {
       const mockTable = { filterGlobal: vi.fn() } as unknown as Table;
