@@ -4,7 +4,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { AvailableStore, StoreAddress, StoreType } from '../models/store.model';
 import { AutoScrapeResponse, ScrapeStatusResponse } from '../models/admin.model';
-import { DealsResponse } from '../models/deal.model';
+import { Deal, DealsResponse } from '../models/deal.model';
 
 export interface CreateStoreRequest {
   type: StoreType;
@@ -77,5 +77,19 @@ export class AdminService {
     return this.http.get<CircularResponse>(`${environment.apiUrl}/admin/circulars`).pipe(
       map(response => response.circulars)
     );
+  }
+
+  updateDeal(
+    instanceId: string,
+    weekId: string,
+    dealId: string,
+    body: { canonicalProductId?: string; dept?: string }
+  ): Observable<Deal> {
+    return this.http
+      .patch<{ deal: Deal }>(
+        `${environment.apiUrl}/admin/deals/${instanceId}/${weekId}/${dealId}`,
+        body
+      )
+      .pipe(map(r => r.deal));
   }
 }

@@ -4,6 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { AdminService, Circular, CreateStoreRequest, CreateStoreResponse, UpdateStoreRequest, UpdateStoreResponse } from './admin.service';
 import { AvailableStore } from '../models/store.model';
 import { ScrapeStatusResponse } from '../models/admin.model';
+import { Deal } from '../models/deal.model';
 
 const API = '/api';
 
@@ -182,6 +183,57 @@ describe('AdminService', () => {
       httpCtrl.expectOne(`${API}/admin/deals/kingsoopers:abc/2026-W17`).flush(mockResponse);
 
       expect(result).toEqual(mockResponse);
+    });
+  });
+
+  describe('updateDeal', () => {
+    const instanceId = 'kingsoopers:abc';
+    const weekId = '2026-W17';
+    const dealId = 'deal-001';
+    const url = `${API}/admin/deals/${instanceId}/${weekId}/${dealId}`;
+
+    it('should send PATCH to /admin/deals/:instanceId/:weekId/:dealId', () => {
+      service.updateDeal(instanceId, weekId, dealId, { dept: 'produce' }).subscribe();
+
+      const req = httpCtrl.expectOne(url);
+      expect(req.request.method).toBe('PATCH');
+      req.flush({ deal: {} });
+    });
+
+    it('should send the request body', () => {
+      const body = { dept: 'dairy', canonicalProductId: 'milk' };
+      service.updateDeal(instanceId, weekId, dealId, body).subscribe();
+
+      const req = httpCtrl.expectOne(url);
+      expect(req.request.body).toEqual(body);
+      req.flush({ deal: {} });
+    });
+
+    it('should unwrap the deal from the response envelope', () => {
+      const mockDeal: Partial<Deal> = { dealId, dept: 'produce' };
+
+      let result: Deal | undefined;
+      service.updateDeal(instanceId, weekId, dealId, { dept: 'produce' }).subscribe(d => result = d);
+
+      httpCtrl.expectOne(url).flush({ deal: mockDeal });
+
+      expect(result).toEqual(mockDeal);
+    });
+
+    it('should send only dept when canonicalProductId is omitted', () => {
+      service.updateDeal(instanceId, weekId, dealId, { dept: 'frozen' }).subscribe();
+
+      const req = httpCtrl.expectOne(url);
+      expect(req.request.body).toEqual({ dept: 'frozen' });
+      req.flush({ deal: {} });
+    });
+
+    it('should send only canonicalProductId when dept is omitted', () => {
+      service.updateDeal(instanceId, weekId, dealId, { canonicalProductId: 'ice-cream' }).subscribe();
+
+      const req = httpCtrl.expectOne(url);
+      expect(req.request.body).toEqual({ canonicalProductId: 'ice-cream' });
+      req.flush({ deal: {} });
     });
   });
 

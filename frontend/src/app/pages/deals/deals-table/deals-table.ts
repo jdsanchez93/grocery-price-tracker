@@ -1,5 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
-import { CurrencyPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, contentChild, input, model, signal, TemplateRef } from '@angular/core';
+import { CurrencyPipe, NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Table, TableModule } from 'primeng/table';
 import { MultiSelectModule } from 'primeng/multiselect';
@@ -30,6 +30,7 @@ export interface DealColumnConfig {
   selector: 'app-deals-table',
   imports: [
     CurrencyPipe,
+    NgTemplateOutlet,
     RouterLink,
     TableModule,
     MultiSelectModule,
@@ -53,6 +54,11 @@ export class DealsTable {
   rows = input(20);
   rowsPerPageOptions = input([10, 20, 50]);
   dataKey = input('dealId');
+  selectable = input(false);
+  selectedDeals = model<Deal[]>([]);
+
+  rowActionsTemplate = contentChild<TemplateRef<{ $implicit: Deal }>>('rowActions');
+  captionActionsTemplate = contentChild<TemplateRef<unknown>>('captionActions');
 
   expandedRows = signal<Record<string, boolean>>({});
   globalFilterValue = signal('');
@@ -68,7 +74,10 @@ export class DealsTable {
   );
 
   expandedColspan = computed(() =>
-    this.columns().length + (this.hasExpandableRows() ? 1 : 0)
+    this.columns().length
+    + (this.hasExpandableRows() ? 1 : 0)
+    + (this.selectable() ? 1 : 0)
+    + (this.rowActionsTemplate() ? 1 : 0)
   );
 
   onGlobalFilter(table: Table, event: Event): void {

@@ -1,4 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { Component } from '@angular/core';
 import { DealsTable, DealColumnConfig } from './deals-table';
 import { Deal } from '../../../core/models/deal.model';
 import { makeDeal } from '../../../core/models/test-utils';
@@ -100,6 +102,24 @@ describe('DealsTable', () => {
       fixture.componentRef.setInput('deals', [makeDeal({ dealId: 'd1' })]);
       fixture.detectChanges();
       expect(component.expandedColspan()).toBe(TEST_COLUMNS.length);
+    });
+
+    it('expandedColspan adds 1 when selectable is true', () => {
+      fixture.componentRef.setInput('deals', [makeDeal({ dealId: 'd1' })]);
+      fixture.componentRef.setInput('selectable', true);
+      fixture.detectChanges();
+      // no expandable rows + selectable = columns + 1
+      expect(component.expandedColspan()).toBe(TEST_COLUMNS.length + 1);
+    });
+  });
+
+  describe('selectable', () => {
+    it('selectable defaults to false', () => {
+      expect(component.selectable()).toBe(false);
+    });
+
+    it('selectedDeals defaults to empty array', () => {
+      expect(component.selectedDeals()).toEqual([]);
     });
   });
 
@@ -297,5 +317,96 @@ describe('DealsTable', () => {
       const text = fixture.nativeElement.textContent;
       expect(text).toContain('No deals found');
     });
+  });
+});
+
+// ── Content projection ────────────────────────────────────────────────────────
+// Tests for #captionActions and #rowActions require a host component to project
+// content into DealsTable.
+
+const FLAT_DEALS = [makeDeal({ dealId: 'flat' })]; // no priceVariants → no expand toggle
+
+@Component({
+  template: `
+    <app-deals-table [deals]="deals" [columns]="columns">
+      <ng-template #captionActions>
+        <button class="test-caption-btn">Caption Action</button>
+      </ng-template>
+    </app-deals-table>
+  `,
+  imports: [DealsTable],
+})
+class HostWithCaptionActions {
+  deals = FLAT_DEALS;
+  columns = TEST_COLUMNS;
+}
+
+@Component({
+  template: `
+    <app-deals-table [deals]="deals" [columns]="columns">
+      <ng-template #rowActions let-deal>
+        <button class="test-row-btn">Row Action</button>
+      </ng-template>
+    </app-deals-table>
+  `,
+  imports: [DealsTable],
+})
+class HostWithRowActions {
+  deals = FLAT_DEALS;
+  columns = TEST_COLUMNS;
+}
+
+describe('DealsTable — captionActionsTemplate', () => {
+  let hostFixture: ComponentFixture<HostWithCaptionActions>;
+  let tableComponent: DealsTable;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [HostWithCaptionActions],
+    }).compileComponents();
+
+    hostFixture = TestBed.createComponent(HostWithCaptionActions);
+    tableComponent = hostFixture.debugElement.query(By.directive(DealsTable)).componentInstance;
+    hostFixture.detectChanges();
+    await hostFixture.whenStable();
+  });
+
+  it('captionActionsTemplate signal is defined when template is projected', () => {
+    expect(tableComponent.captionActionsTemplate()).toBeDefined();
+  });
+
+  it('renders .caption-actions even when there are no expandable rows', () => {
+    expect(hostFixture.nativeElement.querySelector('.caption-actions')).toBeTruthy();
+  });
+
+  it('renders projected caption content inside .caption-actions', () => {
+    const btn = hostFixture.nativeElement.querySelector('.test-caption-btn');
+    expect(btn).toBeTruthy();
+    expect(btn.textContent).toContain('Caption Action');
+  });
+});
+
+describe('DealsTable — rowActionsTemplate', () => {
+  let hostFixture: ComponentFixture<HostWithRowActions>;
+  let tableComponent: DealsTable;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [HostWithRowActions],
+    }).compileComponents();
+
+    hostFixture = TestBed.createComponent(HostWithRowActions);
+    tableComponent = hostFixture.debugElement.query(By.directive(DealsTable)).componentInstance;
+    hostFixture.detectChanges();
+    await hostFixture.whenStable();
+  });
+
+  it('rowActionsTemplate signal is defined when template is projected', () => {
+    expect(tableComponent.rowActionsTemplate()).toBeDefined();
+  });
+
+  it('expandedColspan adds 1 for rowActionsTemplate (no expandable rows, not selectable)', () => {
+    // flat deals → no expand col; not selectable; rowActionsTemplate present → +1
+    expect(tableComponent.expandedColspan()).toBe(TEST_COLUMNS.length + 1);
   });
 });

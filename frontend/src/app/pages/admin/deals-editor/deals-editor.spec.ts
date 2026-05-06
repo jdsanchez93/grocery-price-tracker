@@ -6,8 +6,9 @@ import { AdminService, Circular } from '@/app/core/services/admin.service';
 import { AvailableStore } from '@/app/core/models/store.model';
 import { Deal } from '@/app/core/models/deal.model';
 import { MessageService } from 'primeng/api';
-import { Component, input } from '@angular/core';
+import { Component, input, model } from '@angular/core';
 import { DealColumnConfig, DealsTable } from '../../deals/deals-table/deals-table';
+import { DealEditDialog } from './deal-edit-dialog/deal-edit-dialog';
 
 @Component({
   selector: 'app-deals-table',
@@ -17,6 +18,16 @@ class StubDealsTable {
   deals = input.required<Deal[]>();
   columns = input.required<DealColumnConfig[]>();
   loading = input(false);
+  selectable = input(false);
+  selectedDeals = model<Deal[]>([]);
+}
+
+@Component({
+  selector: 'app-deal-edit-dialog',
+  template: '',
+})
+class StubDealEditDialog {
+  open(_deals: Deal[]): void {}
 }
 // ── fixtures ──────────────────────────────────────────────────────────────────
 
@@ -66,8 +77,8 @@ async function create(adminService = makeAdminService()) {
     ],
   })
     .overrideComponent(DealsEditor, {
-      remove: { imports: [DealsTable] },
-      add: { imports: [StubDealsTable] },
+      remove: { imports: [DealsTable, DealEditDialog] },
+      add: { imports: [StubDealsTable, StubDealEditDialog] },
     })
     .compileComponents();
 
@@ -178,17 +189,60 @@ describe('DealsEditor', () => {
   describe('store change resets week', () => {
     it('clears selectedWeekId when selectedStoreId changes', async () => {
       const { component, fixture } = await create();
-      // Two-step: set store → flush reset effect → set week → change store → flush
       component.selectedStoreId.set('kingsoopers:abc');
-      fixture.detectChanges(); // reset effect fires (weekId already null, no-op)
+      fixture.detectChanges();
       component.selectedWeekId.set('2026-W17');
-      fixture.detectChanges(); // selection is now valid
+      fixture.detectChanges();
 
       component.selectedStoreId.set('safeway:xyz');
-      fixture.detectChanges(); // reset effect fires → weekId cleared
+      fixture.detectChanges();
       await fixture.whenStable();
 
       expect(component.selectedWeekId()).toBeNull();
+    });
+  });
+
+  // ── week → selection reset ───────────────────────────────────────────────────
+
+  describe('week change resets selection', () => {
+    it('clears selectedDeals when selectedWeekId changes', async () => {
+      const { component, fixture } = await create();
+      component.selectedStoreId.set('kingsoopers:abc');
+      fixture.detectChanges();
+      component.selectedWeekId.set('2026-W17');
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      // Simulate a selection made while browsing this week
+      component.selectedDeals.set([mockDeal]);
+      expect(component.selectedDeals()).toHaveLength(1);
+
+      // Switch to a different week
+      component.selectedWeekId.set('2026-W16');
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(component.selectedDeals()).toEqual([]);
+    });
+
+    it('clears dealsOverrides when selectedWeekId changes', async () => {
+      const { component, fixture } = await create();
+      component.selectedStoreId.set('kingsoopers:abc');
+      fixture.detectChanges();
+      component.selectedWeekId.set('2026-W17');
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      // Simulate a saved override
+      component['dealsOverrides'].set(new Map([['deal001', { ...mockDeal, dept: 'produce' }]]));
+      expect(component.deals()[0].dept).toBe('produce');
+
+      component.selectedWeekId.set('2026-W16');
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      // Overrides cleared — the new week's deals are unmodified
+      expect(component['dealsOverrides']().size).toBe(0);
     });
   });
 
@@ -302,6 +356,20 @@ describe('DealsEditor', () => {
       fixture.detectChanges();
 
       expect(component.deals()).toEqual([]);
+    });
+  });
+
+  // ── clearSelection ──────────────────────────────────────────────────────────
+
+  describe('clearSelection', () => {
+    it('sets selectedDeals to empty array', async () => {
+      const { component } = await create();
+      component.selectedDeals.set([mockDeal]);
+      expect(component.selectedDeals()).toHaveLength(1);
+
+      component.clearSelection();
+
+      expect(component.selectedDeals()).toEqual([]);
     });
   });
 

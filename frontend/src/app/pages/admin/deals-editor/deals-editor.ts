@@ -1,6 +1,7 @@
 import { AdminService, type Circular } from '@/app/core/services/admin.service';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { DealColumnConfig, DealsTable } from "../../deals/deals-table/deals-table";
+import { DealEditDialog } from './deal-edit-dialog/deal-edit-dialog';
 import { SelectModule } from 'primeng/select';
 import { Deal } from '@/app/core/models/deal.model';
 import { AvailableStore, StoreSelectOption, storeSelectOption } from '@/app/core/models/store.model';
@@ -8,6 +9,7 @@ import { FormsModule } from '@angular/forms';
 import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FluidModule } from 'primeng/fluid';
+import { ButtonModule } from 'primeng/button';
 
 interface WeekOption {
   value: string; // weekId
@@ -31,9 +33,11 @@ function formatWeekLabel(weekId: string, startDate: string, endDate: string): st
   selector: 'app-deals-editor',
   imports: [
     DealsTable,
+    DealEditDialog,
     SelectModule,
     FormsModule,
-    FluidModule
+    FluidModule,
+    ButtonModule,
   ],
   templateUrl: './deals-editor.html',
   styleUrl: './deals-editor.scss',
@@ -41,11 +45,26 @@ function formatWeekLabel(weekId: string, startDate: string, endDate: string): st
 })
 export class DealsEditor {
   private adminService = inject(AdminService);
+  private editDialog = viewChild.required(DealEditDialog);
 
   constructor() {
+    // Store change: reset week, overrides, and selection.
     effect(() => {
       this.selectedStoreId(); // track
-      untracked(() => this.selectedWeekId.set(null));
+      untracked(() => {
+        this.selectedWeekId.set(null);
+        this.dealsOverrides.set(new Map());
+        this.selectedDeals.set([]);
+      });
+    });
+
+    // Week change: reset overrides and selection (deals are a new set).
+    effect(() => {
+      this.selectedWeekId(); // track
+      untracked(() => {
+        this.dealsOverrides.set(new Map());
+        this.selectedDeals.set([]);
+      });
     });
 
     forkJoin([this.adminService.getAllStores(), this.adminService.getAllCirculars()])
@@ -62,8 +81,10 @@ export class DealsEditor {
 
   selectedStoreId = signal<string | null>(null);
   selectedWeekId = signal<string | null>(null);
+  selectedDeals = signal<Deal[]>([]);
 
   loadingMeta = signal(false);
+  private dealsOverrides = signal<Map<string, Deal>>(new Map());
 
   allCirculars = signal<Circular[]>([]);
   allStores = signal<AvailableStore[]>([]);
@@ -100,8 +121,28 @@ export class DealsEditor {
     { initialValue: { loading: false, deals: [] as Deal[] } }
   );
 
-  deals = computed(() => this.dealsState().deals);
+  deals = computed(() => {
+    const overrides = this.dealsOverrides();
+    return this.dealsState().deals.map(d => overrides.get(d.dealId) ?? d);
+  });
   loadingDeals = computed(() => this.dealsState().loading);
+
+  openEditDialog(deals: Deal[]): void {
+    this.editDialog().open(deals);
+  }
+
+  clearSelection(): void {
+    this.selectedDeals.set([]);
+  }
+
+  onDealsSaved(updatedDeals: Deal[]): void {
+    this.dealsOverrides.update(map => {
+      const next = new Map(map);
+      for (const d of updatedDeals) next.set(d.dealId, d);
+      return next;
+    });
+    this.selectedDeals.set([]);
+  }
 
   columns = computed<DealColumnConfig[]>(() => [
     {
@@ -130,12 +171,7 @@ export class DealsEditor {
       field: 'priceDisplay',
       header: 'Price',
       sortable: true
-    },
-    {
-      field: 'loyalty',
-      header: 'Loyalty',
-      style: { width: '60px' }
-    },
+    }
   ]);
 
   availableWeeks = computed<WeekOption[]>(() =>
