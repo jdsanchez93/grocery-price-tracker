@@ -151,17 +151,21 @@ describe('DealsEditor', () => {
     });
   });
 
+  // ── columns ─────────────────────────────────────────────────────────────────
+
+  describe('columns', () => {
+    it('includes canonicalProductId column', async () => {
+      const { component } = await create();
+      expect(component.columns().some(c => c.field === 'canonicalProductId')).toBe(true);
+    });
+  });
+
   // ── availableWeeks ──────────────────────────────────────────────────────────
 
   describe('availableWeeks', () => {
     it('returns empty array when no store is selected', async () => {
       const { component } = await create();
       expect(component.availableWeeks()).toEqual([]);
-    });
-
-    it('includes canonicalProductId column', async () => {
-      const { component } = await create();
-      expect(component.columns().some(c => c.field === 'canonicalProductId')).toBe(true);
     });
 
     it('returns weeks only for the selected store', async () => {
