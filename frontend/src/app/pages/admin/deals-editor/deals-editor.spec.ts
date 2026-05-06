@@ -159,6 +159,11 @@ describe('DealsEditor', () => {
       expect(component.availableWeeks()).toEqual([]);
     });
 
+    it('includes canonicalProductId column', async () => {
+      const { component } = await create();
+      expect(component.columns().some(c => c.field === 'canonicalProductId')).toBe(true);
+    });
+
     it('returns weeks only for the selected store', async () => {
       const { component } = await create();
       component.selectedStoreId.set('kingsoopers:abc');

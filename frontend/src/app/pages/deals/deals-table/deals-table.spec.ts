@@ -268,6 +268,18 @@ describe('DealsTable', () => {
     });
   });
 
+  describe('canonicalProductId column', () => {
+    it('getFieldValue returns the canonical product id', () => {
+      const deal = makeDeal({ canonicalProductId: 'chicken-breast' });
+      expect(component.getFieldValue(deal, 'canonicalProductId')).toBe('chicken-breast');
+    });
+
+    it('getFieldValue returns empty string when canonicalProductId is undefined', () => {
+      const deal = makeDeal({ canonicalProductId: undefined });
+      expect(component.getFieldValue(deal, 'canonicalProductId')).toBe('');
+    });
+  });
+
   describe('weekId column', () => {
     it('getFieldValue should return weekId string', () => {
       const deal = makeDeal({ weekId: '2026-W14' });

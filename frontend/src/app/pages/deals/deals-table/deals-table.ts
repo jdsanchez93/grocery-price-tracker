@@ -14,7 +14,7 @@ import { Deal } from '../../../core/models/deal.model';
 import { getStoreAbbr, getStoreDisplayName, getStoreSeverity, TagSeverity } from '../../../core/models/store.model';
 import { DealRatingBadge } from '../../../shared/components/deal-rating-badge/deal-rating-badge';
 
-export type DealColumnField = 'image' | 'store' | 'name' | 'dept' | 'priceDisplay' | 'quantity' | 'loyalty' | 'weekId' | 'rating';
+export type DealColumnField = 'image' | 'store' | 'name' | 'dept' | 'priceDisplay' | 'quantity' | 'loyalty' | 'weekId' | 'rating' | 'canonicalProductId';
 
 export interface DealColumnConfig {
   field: DealColumnField;

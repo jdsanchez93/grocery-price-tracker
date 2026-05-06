@@ -169,7 +169,13 @@ export class DealsEditor {
       field: 'priceDisplay',
       header: 'Price',
       sortable: true
-    }
+    },
+    {
+      field: 'canonicalProductId',
+      header: 'Product ID',
+      sortable: true,
+      filterType: 'multiselect',
+    },
   ]);
 
   availableWeeks = computed<WeekOption[]>(() =>
