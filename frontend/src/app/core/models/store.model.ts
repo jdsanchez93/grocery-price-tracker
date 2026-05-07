@@ -86,6 +86,27 @@ export function getStoreSeverity(instanceId: string): TagSeverity {
   return STORE_SEVERITY[storeType] ?? 'secondary';
 }
 
+/**
+ * Formats a store's name and address for use in a select dropdown option label.
+ * e.g. "King Soopers — 1234 Main St, Boulder, CO"
+ */
+export function storeSelectLabel(store: { name: string; address?: StoreAddress }): string {
+  const addr = store.address;
+  const addrStr = addr
+    ? ` — ${addr.addressLine1 ? addr.addressLine1 + ', ' : ''}${addr.city}, ${addr.state}`
+    : '';
+  return store.name + addrStr;
+}
+
+export interface StoreSelectOption {
+  value: string; // instanceId
+  label: string;
+}
+
+export function storeSelectOption(store: { instanceId: string; name: string; address?: StoreAddress }): StoreSelectOption {
+  return { value: store.instanceId, label: storeSelectLabel(store) };
+}
+
 export interface StoreAddress {
   addressLine1: string;
   city: string;

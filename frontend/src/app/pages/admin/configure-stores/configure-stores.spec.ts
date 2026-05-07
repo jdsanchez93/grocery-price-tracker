@@ -37,13 +37,14 @@ describe('ConfigureStores', () => {
       imports: [ConfigureStores],
       providers: [
         { provide: AdminService, useValue: mockAdminService },
+        MessageService,
       ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(ConfigureStores);
     component = fixture.componentInstance;
 
-    const messageService = fixture.debugElement.injector.get(MessageService);
+    const messageService = TestBed.inject(MessageService);
     messageServiceAdd = vi.spyOn(messageService, 'add');
 
     fixture.detectChanges();
@@ -306,13 +307,11 @@ describe('ConfigureStores', () => {
       component.identifierForm().setValue({ storeId: '12345', facilityId: '67890' });
     }
 
-    it('shows error toast with error message', () => {
+    it('does not show a toast (interceptor handles HTTP errors)', () => {
       mockAdminService.createStore.mockReturnValue(throwError(() => new Error('Network error')));
       fillForm();
       component.submitForm();
-      expect(messageServiceAdd).toHaveBeenCalledWith(
-        expect.objectContaining({ severity: 'error', summary: 'Error', detail: 'Network error' })
-      );
+      expect(messageServiceAdd).not.toHaveBeenCalled();
     });
 
     it('sets submitting to false after error', () => {
@@ -486,13 +485,11 @@ describe('ConfigureStores', () => {
   // --- submitEditForm: error ---
 
   describe('submitEditForm — error', () => {
-    it('shows error toast', () => {
+    it('does not show a toast (interceptor handles HTTP errors)', () => {
       mockAdminService.updateStore.mockReturnValue(throwError(() => new Error('Network error')));
       component.openEditDialog(makeStore());
       component.submitEditForm();
-      expect(messageServiceAdd).toHaveBeenCalledWith(
-        expect.objectContaining({ severity: 'error', summary: 'Error', detail: 'Network error' }),
-      );
+      expect(messageServiceAdd).not.toHaveBeenCalled();
     });
 
     it('does not close the dialog on error', () => {

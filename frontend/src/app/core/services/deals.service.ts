@@ -1,14 +1,7 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Deal } from '../models/deal.model';
-import { getStoreDisplayName } from '../models/store.model';
+import { Deal, DealsResponse } from '../models/deal.model';
 import { environment } from '../../../environments/environment';
-
-interface DealsResponse {
-  weekId: string;
-  deals: Deal[];
-  count: number;
-}
 
 interface WeekResponse {
   weekId: string;
@@ -35,28 +28,9 @@ export class DealsService {
     this._currentWeekId() === this._selectedWeekId()
   );
 
-  storeInstanceIds = computed(() => {
-    const ids = new Set(this._deals().map(d => d.storeInstanceId));
-    return Array.from(ids);
-  });
-
   departments = computed(() => {
     const depts = new Set(this._deals().map(d => d.dept));
     return Array.from(depts).sort();
-  });
-
-  storeOptions = computed(() => {
-    return this.storeInstanceIds().map(id => ({
-      value: id,
-      label: getStoreDisplayName(id)
-    }));
-  });
-
-  departmentOptions = computed(() => {
-    return this.departments().map(dept => ({
-      value: dept,
-      label: dept
-    }));
   });
 
   constructor() {

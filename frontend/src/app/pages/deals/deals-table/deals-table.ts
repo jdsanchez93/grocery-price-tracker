@@ -1,5 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
-import { CurrencyPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, contentChild, input, model, signal, TemplateRef } from '@angular/core';
+import { CurrencyPipe, NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Table, TableModule } from 'primeng/table';
 import { MultiSelectModule } from 'primeng/multiselect';
@@ -14,7 +14,7 @@ import { Deal } from '../../../core/models/deal.model';
 import { getStoreAbbr, getStoreDisplayName, getStoreSeverity, TagSeverity } from '../../../core/models/store.model';
 import { DealRatingBadge } from '../../../shared/components/deal-rating-badge/deal-rating-badge';
 
-export type DealColumnField = 'image' | 'store' | 'name' | 'dept' | 'priceDisplay' | 'quantity' | 'loyalty' | 'weekId' | 'rating';
+export type DealColumnField = 'image' | 'store' | 'name' | 'dept' | 'priceDisplay' | 'quantity' | 'loyalty' | 'weekId' | 'rating' | 'canonicalProductId';
 
 export interface DealColumnConfig {
   field: DealColumnField;
@@ -22,7 +22,6 @@ export interface DealColumnConfig {
   sortable?: boolean;
   filterType?: 'text' | 'multiselect';
   filterField?: string;
-  filterOptions?: { value: string; label: string }[];
   style?: Record<string, string>;
 }
 
@@ -30,6 +29,7 @@ export interface DealColumnConfig {
   selector: 'app-deals-table',
   imports: [
     CurrencyPipe,
+    NgTemplateOutlet,
     RouterLink,
     TableModule,
     MultiSelectModule,
@@ -53,6 +53,11 @@ export class DealsTable {
   rows = input(20);
   rowsPerPageOptions = input([10, 20, 50]);
   dataKey = input('dealId');
+  selectable = input(false);
+  selectedDeals = model<Deal[]>([]);
+
+  rowActionsTemplate = contentChild<TemplateRef<{ $implicit: Deal }>>('rowActions');
+  captionActionsTemplate = contentChild<TemplateRef<unknown>>('captionActions');
 
   expandedRows = signal<Record<string, boolean>>({});
   globalFilterValue = signal('');
@@ -67,8 +72,41 @@ export class DealsTable {
     this.deals().some(d => d.priceVariants && d.priceVariants.length > 0)
   );
 
+  /**
+   * Auto-derives multiselect filter options from the current deals for any
+   * column that uses filterType='multiselect'. Keyed by the effective filter 
+   * field (col.filterField ?? col.field). The store column gets human-readable 
+   * labels via getStoreDisplayName.
+   */
+  derivedFilterOptions = computed(() => {
+    const result = new Map<string, { value: string; label: string }[]>();
+    for (const col of this.columns()) {
+      if (col.filterType !== 'multiselect') continue;
+      const field = col.filterField ?? col.field;
+      const seen = new Set<string>();
+      const opts: { value: string; label: string }[] = [];
+      for (const deal of this.deals()) {
+        const raw = field === 'storeInstanceId'
+          ? deal.storeInstanceId
+          : String((deal as any)[field] ?? '');
+        if (raw && !seen.has(raw)) {
+          seen.add(raw);
+          opts.push({
+            value: raw,
+            label: field === 'storeInstanceId' ? this.getStoreDisplayName(raw) : raw,
+          });
+        }
+      }
+      result.set(field, opts.sort((a, b) => a.label.localeCompare(b.label)));
+    }
+    return result;
+  });
+
   expandedColspan = computed(() =>
-    this.columns().length + (this.hasExpandableRows() ? 1 : 0)
+    this.columns().length
+    + (this.hasExpandableRows() ? 1 : 0)
+    + (this.selectable() ? 1 : 0)
+    + (this.rowActionsTemplate() ? 1 : 0)
   );
 
   onGlobalFilter(table: Table, event: Event): void {

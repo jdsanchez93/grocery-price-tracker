@@ -1,7 +1,6 @@
 import { AdminService } from '@/app/core/services/admin.service';
 import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
 import { MessageService } from 'primeng/api';
-import { ToastModule } from 'primeng/toast';
 import { StoreCard, StoreStat } from "@/app/shared/components/store-card/store-card";
 import { ButtonModule, ButtonSeverity } from "primeng/button";
 import { AvailableStore } from '@/app/core/models/store.model';
@@ -12,10 +11,8 @@ import { SkeletonModule } from 'primeng/skeleton';
 @Component({
   selector: 'app-scrape-management',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ToastModule, StoreCard, ButtonModule, SkeletonModule],
-  providers: [MessageService],
+  imports: [StoreCard, ButtonModule, SkeletonModule],
   template: `
-    <p-toast />
     @if (loading()) {
       <div class="store-grid">
           @for (_ of skeletonItems; track $index) {                                                                      
@@ -49,7 +46,6 @@ export class ScrapeManagement implements OnInit {
   private adminService = inject(AdminService);
   private messageService = inject(MessageService);
 
-  error = signal<string | null>(null);
   loading = signal<boolean>(false);
 
   // track loading per instanceId
@@ -62,7 +58,6 @@ export class ScrapeManagement implements OnInit {
 
   ngOnInit(): void {
     this.loading.set(true);
-    this.error.set(null);
 
     this.adminService.getAllStores()
       .pipe(
@@ -79,8 +74,7 @@ export class ScrapeManagement implements OnInit {
           this.scrapeStatus.set(status);
           this.loading.set(false);
         },
-        error: (err) => {
-          this.error.set(err.message || 'Failed to initialize');
+        error: () => {
           this.loading.set(false);
         }
       });
@@ -105,7 +99,6 @@ export class ScrapeManagement implements OnInit {
 
   scrapeStore(instanceId: string, force: boolean = false) {
     this.scrapingInProgress.update(s => { s.add(instanceId); return new Set(s); });
-    this.error.set(null);
     this.adminService.autoScrapeStore(instanceId, force)
       .subscribe({
         next: (res) => {
@@ -121,14 +114,8 @@ export class ScrapeManagement implements OnInit {
             [instanceId]: { scraped: true, dealCount: dealCount, circularId: res.circularId }
           }));
         },
-        error: (err) => {
-          this.error.set(err.message || 'Failed to initiate scrape');
+        error: () => {
           this.scrapingInProgress.update(s => { s.delete(instanceId); return new Set(s); });
-          this.messageService.add({
-            severity: 'error',
-            summary: 'Scraping error',
-            detail: this.error()!
-          });
         }
       });
   }

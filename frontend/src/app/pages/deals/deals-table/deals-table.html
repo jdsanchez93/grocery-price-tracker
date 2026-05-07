@@ -11,6 +11,9 @@
   [expandedRowKeys]="expandedRows()"
   [rowExpandMode]="'single'"
   [scrollable]="true"
+  [selectionMode]="selectable() ? 'multiple' : undefined"
+  [selection]="selectedDeals()"
+  (selectionChange)="selectedDeals.set($event)"
 >
   <ng-template #caption>
     <div class="table-caption">
@@ -27,22 +30,27 @@
           />
         </p-iconfield>
       </div>
-      @if (hasExpandableRows()) {
+      @if (captionActionsTemplate() || hasExpandableRows()) {
         <div class="caption-actions">
-          <p-button
-            label="Expand All"
-            icon="pi pi-plus"
-            severity="secondary"
-            [text]="true"
-            (onClick)="expandAll()"
-          />
-          <p-button
-            label="Collapse All"
-            icon="pi pi-minus"
-            severity="secondary"
-            [text]="true"
-            (onClick)="collapseAll()"
-          />
+          @if (captionActionsTemplate()) {
+            <ng-container [ngTemplateOutlet]="captionActionsTemplate()!" />
+          }
+          @if (hasExpandableRows()) {
+            <p-button
+              label="Expand All"
+              icon="pi pi-plus"
+              severity="secondary"
+              [text]="true"
+              (onClick)="expandAll()"
+            />
+            <p-button
+              label="Collapse All"
+              icon="pi pi-minus"
+              severity="secondary"
+              [text]="true"
+              (onClick)="collapseAll()"
+            />
+          }
         </div>
       }
     </div>
@@ -55,6 +63,9 @@
           <span class="sr-only">Expand</span>
         </th>
       }
+      @if (selectable()) {
+        <th style="width: 3rem"><p-tableHeaderCheckbox /></th>
+      }
       @for (col of columns; track col.field) {
         <th [style]="col.style" [pSortableColumn]="col.sortable ? (col.filterField ?? col.field) : undefined">
           {{ col.header }}
@@ -63,9 +74,15 @@
           }
         </th>
       }
+      @if (rowActionsTemplate()) {
+        <th style="width: 3rem"><span class="sr-only">Actions</span></th>
+      }
     </tr>
     <tr>
       @if (hasExpandableRows()) {
+        <th></th>
+      }
+      @if (selectable()) {
         <th></th>
       }
       @for (col of columns; track col.field) {
@@ -75,7 +92,7 @@
               <p-columnFilter [field]="col.filterField ?? col.field" matchMode="in" [showMenu]="false">
                 <ng-template #filter let-filter="filterCallback">
                   <p-multiSelect
-                    [options]="col.filterOptions ?? []"
+                    [options]="derivedFilterOptions().get(col.filterField ?? col.field) ?? []"
                     [placeholder]="'All'"
                     (onChange)="filter($event.value)"
                     optionLabel="label"
@@ -104,6 +121,9 @@
           }
         </th>
       }
+      @if (rowActionsTemplate()) {
+        <th></th>
+      }
     </tr>
   </ng-template>
 
@@ -122,6 +142,9 @@
             />
           }
         </td>
+      }
+      @if (selectable()) {
+        <td><p-tableCheckbox [value]="deal" /></td>
       }
       @for (col of columns; track col.field) {
         <td [style]="col.style">
@@ -172,6 +195,13 @@
                 </a>
               }
             }
+            @case ('canonicalProductId') {
+              @if (deal.canonicalProductId) {
+                <code class="product-id">{{ deal.canonicalProductId }}</code>
+              } @else {
+                <span class="unset">—</span>
+              }
+            }
             @case ('priceDisplay') {
               {{ deal.priceDisplay }}
             }
@@ -179,6 +209,14 @@
               {{ getFieldValue(deal, col.field) }}
             }
           }
+        </td>
+      }
+      @if (rowActionsTemplate()) {
+        <td>
+          <ng-container
+            [ngTemplateOutlet]="rowActionsTemplate()!"
+            [ngTemplateOutletContext]="{ $implicit: deal }"
+          />
         </td>
       }
     </tr>

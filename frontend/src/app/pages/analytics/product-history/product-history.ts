@@ -3,7 +3,6 @@ import { ActivatedRoute } from '@angular/router';
 import { AnalyticsService } from '../../../core/services/analytics.service';
 import { Deal } from '../../../core/models/deal.model';
 import { DealsTable, DealColumnConfig } from '../../deals/deals-table/deals-table';
-import { getStoreDisplayName } from '../../../core/models/store.model';
 
 @Component({
   selector: 'app-product-history',
@@ -58,11 +57,6 @@ export class ProductHistory implements OnInit {
   loading = signal(true);
   error = signal<string | null>(null);
 
-  storeOptions = computed(() => {
-    const ids = new Set(this.history().map(d => d.storeInstanceId));
-    return Array.from(ids).map(id => ({ value: id, label: getStoreDisplayName(id) }));
-  });
-
   columns = computed<DealColumnConfig[]>(() => [
     { field: 'weekId', header: 'Week', sortable: true },
     {
@@ -71,7 +65,6 @@ export class ProductHistory implements OnInit {
       sortable: true,
       filterType: 'multiselect',
       filterField: 'storeInstanceId',
-      filterOptions: this.storeOptions(),
     },
     { field: 'name', header: 'Product', sortable: true },
     { field: 'priceDisplay', header: 'Price', sortable: true },

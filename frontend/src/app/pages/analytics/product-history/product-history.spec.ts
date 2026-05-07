@@ -105,27 +105,6 @@ describe('ProductHistory', () => {
     });
   });
 
-  describe('storeOptions computed', () => {
-    it('should be empty when history is empty', async () => {
-      await setup();
-      expect(component.storeOptions()).toEqual([]);
-    });
-
-    it('should derive unique store options from history', async () => {
-      await setup('chicken-breast', { history: [deal1, deal2], count: 2 });
-      const ids = component.storeOptions().map(o => o.value);
-      expect(ids).toContain('kingsoopers:abc');
-      expect(ids).toContain('safeway:xyz');
-      expect(ids.length).toBe(2);
-    });
-
-    it('should deduplicate stores when multiple deals share the same store', async () => {
-      const deal3 = makeDeal({ dealId: 'd3', storeInstanceId: 'kingsoopers:abc', weekId: '2026-W14' });
-      await setup('chicken-breast', { history: [deal1, deal2, deal3], count: 3 });
-      const ksOptions = component.storeOptions().filter(o => o.value === 'kingsoopers:abc');
-      expect(ksOptions.length).toBe(1);
-    });
-  });
 
   describe('columns computed', () => {
     it('should have 4 columns', async () => {
@@ -145,10 +124,10 @@ describe('ProductHistory', () => {
       expect(storeCol.filterField).toBe('storeInstanceId');
     });
 
-    it('should populate store filterOptions from storeOptions signal', async () => {
-      await setup('chicken-breast', { history: [deal1], count: 1 });
+    it('should configure store column with storeInstanceId as filter field', async () => {
+      await setup();
       const storeCol = component.columns().find(c => c.field === 'store')!;
-      expect(storeCol.filterOptions?.map(o => o.value)).toContain('kingsoopers:abc');
+      expect(storeCol.filterField).toBe('storeInstanceId');
     });
   });
 

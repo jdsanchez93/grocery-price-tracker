@@ -33,3 +33,9 @@ export interface Deal {
   priceVariants?: PriceVariant[];
   rating?: DealRating;
 }
+
+export interface DealsResponse {
+  weekId: string;
+  deals: Deal[];
+  count: number;
+}
