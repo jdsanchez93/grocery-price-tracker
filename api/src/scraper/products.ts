@@ -474,9 +474,62 @@ export function normalizeText(text: string): string {
   return normalized;
 }
 
+function extractFormatKey(
+  name: string | undefined,
+  details: string | undefined,
+  canonicalId: string
+): string | undefined {
+  // Use raw text — normalizeText() strips numbers and hyphens needed for format detection
+  const text = `${name ?? ''} ${details ?? ''}`;
+
+  switch (canonicalId) {
+    case 'soda': {
+      // Try pack+oz+can first — captures "24 pk, 12 oz cans" and "12-Pack, 12 fl oz Cans"
+      const packOzCanMatch = text.match(/\b(\d+)\s*[-\s]?(?:pk|pack)\b.*?(\d+(?:\.\d+)?)\s*(?:fl\.?\s*)?oz\s*cans?/i);
+      if (packOzCanMatch) return `${packOzCanMatch[1]}x${packOzCanMatch[2]}oz-can`;
+      // Fallback: pack count without explicit oz-per-can
+      const packMatch = text.match(/\b(\d+)\s*[-\s]?(?:pack|pk|ct)\b/i);
+      if (packMatch) {
+        const count = packMatch[1];
+        if (/\bcan/i.test(text)) return `${count}pk-can`;
+        if (/\bbottle/i.test(text)) return `${count}pk-bottle`;
+      }
+      if (/\b2\s*[-\s]?(?:l|liter|litre)s?\b/i.test(text)) return '2l';
+      if (/\b20\s*(?:fl\.?\s*)?oz\b/i.test(text)) return '20oz';
+      return undefined;
+    }
+
+    case 'eggs': {
+      const ctMatch = text.match(/\b(\d+)\s*[-\s]?(?:count|ct)\b/i);
+      if (ctMatch) return `${ctMatch[1]}ct`;
+      if (/\b2\s*dozen\b|two\s+dozen\b/i.test(text)) return '24ct';
+      if (/\bdozen\b/i.test(text)) return '12ct';
+      return undefined;
+    }
+
+    case 'milk': {
+      if (/\bhalf\b.*\bgal|\b1\/2\s*gal/i.test(text)) return 'half-gal';
+      if (/\bgal(?:lon)?\b/i.test(text)) return 'gal';
+      if (/\bquart\b|\bqt\b/i.test(text)) return 'qt';
+      return undefined;
+    }
+
+    case 'chips': {
+      // Safeway omits size entirely; KS uses multi-product OR-lists — oz parsing is unreliable.
+      // Only split on "Party Size" keyword which appears explicitly in the name/details.
+      if (/party[\s-]size/i.test(text)) return 'party';
+      return undefined;
+    }
+
+    default:
+      return undefined;
+  }
+}
+
 /**
  * Find the canonical product ID for a given deal name/details/dept.
  * Passing dept enables dept-aware filtering which prevents cross-category false positives.
+ * Returns a format-aware ID (e.g. 'soda:12pk-can') when format can be detected from details.
  */
 export function findCanonicalProductId(name?: string, details?: string, dept?: string): string | undefined {
   const searchText = `${name || ''} ${details || ''}`.toLowerCase();
@@ -490,7 +543,8 @@ export function findCanonicalProductId(name?: string, details?: string, dept?: s
 
     for (const pattern of product.patterns) {
       if (pattern.test(searchText)) {
-        return product.id;
+        const formatKey = extractFormatKey(name, details, product.id);
+        return formatKey ? `${product.id}:${formatKey}` : product.id;
       }
     }
   }

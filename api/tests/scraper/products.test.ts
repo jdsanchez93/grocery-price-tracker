@@ -144,6 +144,72 @@ describe('findCanonicalProductId', () => {
     });
   });
 
+  describe('soda — format-aware', () => {
+    it('KS 12-Pack 12 fl oz Cans → soda:12x12oz-can', () => {
+      expect(findCanonicalProductId('Coca-Cola', '12-Pack, 12 fl oz Cans', 'GROCERY')).toBe('soda:12x12oz-can');
+    });
+    it('Safeway 24 pk 12 oz cans → soda:24x12oz-can', () => {
+      expect(findCanonicalProductId('Coca-Cola Products', '24 pk, 12 oz cans, select varieties', 'Beverages')).toBe('soda:24x12oz-can');
+    });
+    it('Safeway 6 pk 7.5 oz mini cans → soda:6x7.5oz-can', () => {
+      expect(findCanonicalProductId('Coca-Cola Soft Drinks', '6 pk, 7.5 oz cans, select varieties', 'Beverages')).toBe('soda:6x7.5oz-can');
+    });
+    it('Safeway 10 pk 7.5 oz mini cans → soda:10x7.5oz-can', () => {
+      expect(findCanonicalProductId('Coca-Cola Soft Drinks', '10 pk, 7.5 oz cans', 'Beverages')).toBe('soda:10x7.5oz-can');
+    });
+    it('2-liter → soda:2l', () => {
+      expect(findCanonicalProductId('Pepsi', '2 Liter Bottle', 'Beverages')).toBe('soda:2l');
+    });
+    it('20 oz single → soda:20oz', () => {
+      expect(findCanonicalProductId('Dr Pepper', '20 fl oz', 'Beverages')).toBe('soda:20oz');
+    });
+    it('no size info → flat soda (fallback)', () => {
+      expect(findCanonicalProductId('Coca-Cola', undefined, 'GROCERY')).toBe('soda');
+    });
+  });
+
+  describe('eggs — format-aware', () => {
+    it('18-count → eggs:18ct', () => {
+      expect(findCanonicalProductId('Large Eggs', '18-Count', 'Dairy, Eggs & Cheese')).toBe('eggs:18ct');
+    });
+    it('1 dozen → eggs:12ct', () => {
+      expect(findCanonicalProductId('Large Eggs', '1 Dozen', 'Dairy, Eggs & Cheese')).toBe('eggs:12ct');
+    });
+    it('2 dozen → eggs:24ct', () => {
+      expect(findCanonicalProductId('Large Eggs', '2 Dozen', 'Dairy, Eggs & Cheese')).toBe('eggs:24ct');
+    });
+    it('no size info → flat eggs', () => {
+      expect(findCanonicalProductId('Large Eggs', undefined, 'Dairy, Eggs & Cheese')).toBe('eggs');
+    });
+  });
+
+  describe('milk — format-aware', () => {
+    it('gallon → milk:gal', () => {
+      expect(findCanonicalProductId('Whole Milk', '1 Gallon', 'Dairy, Eggs & Cheese')).toBe('milk:gal');
+    });
+    it('half-gallon → milk:half-gal', () => {
+      expect(findCanonicalProductId('2% Milk', 'Half Gallon', 'Dairy, Eggs & Cheese')).toBe('milk:half-gal');
+    });
+    it('no size info → flat milk', () => {
+      expect(findCanonicalProductId('Whole Milk', undefined, 'Dairy, Eggs & Cheese')).toBe('milk');
+    });
+  });
+
+  describe('chips — format-aware', () => {
+    it('Party Size in name → chips:party', () => {
+      expect(findCanonicalProductId("Lay's Party Size Potato Chips", 'Select Varieties, 12.5-13 oz', 'GROCERY')).toBe('chips:party');
+    });
+    it('Party Size in details → chips:party', () => {
+      expect(findCanonicalProductId('Ruffles', 'Party-Size bag', 'GROCERY')).toBe('chips:party');
+    });
+    it('Safeway select sizes and varieties → flat chips', () => {
+      expect(findCanonicalProductId("Lay's, Doritos, Sunchips, Tostitos & Dips", 'select sizes and varieties', 'Cookies, Snacks & Candy')).toBe('chips');
+    });
+    it('KS multi-oz OR list → flat chips', () => {
+      expect(findCanonicalProductId('Doritos', '9-10.75 oz or Ruffles, 7.25-10.25 oz or Sunchips, 7 oz; Select Varieties', 'GROCERY')).toBe('chips');
+    });
+  });
+
   describe('dept filtering prevents false positives', () => {
     it('eggs in DRUG/GM do not match egg canonical product', () => {
       expect(findCanonicalProductId('Kinder Joy Egg', undefined, 'DRUG/GM')).toBeUndefined();
