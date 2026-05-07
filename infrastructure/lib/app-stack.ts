@@ -114,15 +114,6 @@ export class AppStack extends cdk.Stack {
       protocolPolicy: cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
     });
 
-    // index.html must never be cached — browsers need the latest to get correct hashed chunk filenames
-    const indexHtmlCachePolicy = new cloudfront.CachePolicy(this, 'IndexHtmlCachePolicy', {
-      minTtl: cdk.Duration.seconds(0),
-      defaultTtl: cdk.Duration.seconds(0),
-      maxTtl: cdk.Duration.seconds(0),
-      enableAcceptEncodingGzip: true,
-      enableAcceptEncodingBrotli: true,
-    });
-
     // --- CloudFront Distribution ---
     const distribution = new cloudfront.Distribution(this, 'Distribution', {
       defaultBehavior: {
@@ -132,12 +123,6 @@ export class AppStack extends cdk.Stack {
         responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
       },
       additionalBehaviors: {
-        '/index.html': {
-          origin: s3Origin,
-          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-          cachePolicy: indexHtmlCachePolicy,
-          responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
-        },
         '/api/*': {
           origin: apiOrigin,
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
