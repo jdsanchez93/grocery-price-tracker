@@ -197,15 +197,11 @@ describe('DealsEditor', () => {
 
   describe('store change resets week', () => {
     it('clears selectedWeekId when selectedStoreId changes', async () => {
-      const { component, fixture } = await create();
-      component.selectedStoreId.set('kingsoopers:abc');
-      fixture.detectChanges();
-      component.selectedWeekId.set('2026-W17');
-      fixture.detectChanges();
+      const { component } = await create();
+      component.onStoreChange('kingsoopers:abc');
+      component.onWeekChange('2026-W17');
 
-      component.selectedStoreId.set('safeway:xyz');
-      fixture.detectChanges();
-      await fixture.whenStable();
+      component.onStoreChange('safeway:xyz');
 
       expect(component.selectedWeekId()).toBeNull();
     });
@@ -216,41 +212,31 @@ describe('DealsEditor', () => {
   describe('week change resets selection', () => {
     it('clears selectedDeals when selectedWeekId changes', async () => {
       const { component, fixture } = await create();
-      component.selectedStoreId.set('kingsoopers:abc');
-      fixture.detectChanges();
-      component.selectedWeekId.set('2026-W17');
+      component.onStoreChange('kingsoopers:abc');
+      component.onWeekChange('2026-W17');
       fixture.detectChanges();
       await fixture.whenStable();
 
-      // Simulate a selection made while browsing this week
       component.selectedDeals.set([mockDeal]);
       expect(component.selectedDeals()).toHaveLength(1);
 
-      // Switch to a different week
-      component.selectedWeekId.set('2026-W16');
-      fixture.detectChanges();
-      await fixture.whenStable();
+      component.onWeekChange('2026-W16');
 
       expect(component.selectedDeals()).toEqual([]);
     });
 
     it('clears dealsOverrides when selectedWeekId changes', async () => {
       const { component, fixture } = await create();
-      component.selectedStoreId.set('kingsoopers:abc');
-      fixture.detectChanges();
-      component.selectedWeekId.set('2026-W17');
+      component.onStoreChange('kingsoopers:abc');
+      component.onWeekChange('2026-W17');
       fixture.detectChanges();
       await fixture.whenStable();
 
-      // Simulate a saved override
       component['dealsOverrides'].set(new Map([['deal001', { ...mockDeal, dept: 'produce' }]]));
       expect(component.deals()[0].dept).toBe('produce');
 
-      component.selectedWeekId.set('2026-W16');
-      fixture.detectChanges();
-      await fixture.whenStable();
+      component.onWeekChange('2026-W16');
 
-      // Overrides cleared — the new week's deals are unmodified
       expect(component['dealsOverrides']().size).toBe(0);
     });
   });
@@ -288,9 +274,8 @@ describe('DealsEditor', () => {
 
     it('calls getHistoricalDeals when selection becomes valid', async () => {
       const { component, adminService, fixture } = await create();
-      component.selectedStoreId.set('kingsoopers:abc');
-      fixture.detectChanges(); // flush reset effect first
-      component.selectedWeekId.set('2026-W17');
+      component.onStoreChange('kingsoopers:abc');
+      component.onWeekChange('2026-W17');
       fixture.detectChanges();
       await fixture.whenStable();
 
@@ -299,9 +284,8 @@ describe('DealsEditor', () => {
 
     it('populates deals on successful fetch', async () => {
       const { component, fixture } = await create();
-      component.selectedStoreId.set('kingsoopers:abc');
-      fixture.detectChanges(); // flush reset effect first
-      component.selectedWeekId.set('2026-W17');
+      component.onStoreChange('kingsoopers:abc');
+      component.onWeekChange('2026-W17');
       fixture.detectChanges();
       await fixture.whenStable();
 
@@ -313,9 +297,8 @@ describe('DealsEditor', () => {
         getHistoricalDeals: vi.fn().mockReturnValue(throwError(() => new Error('fail'))),
       });
       const { component, fixture } = await create(svc);
-      component.selectedStoreId.set('kingsoopers:abc');
-      fixture.detectChanges(); // flush reset effect first
-      component.selectedWeekId.set('2026-W17');
+      component.onStoreChange('kingsoopers:abc');
+      component.onWeekChange('2026-W17');
       fixture.detectChanges();
       await fixture.whenStable();
 
@@ -325,15 +308,13 @@ describe('DealsEditor', () => {
 
     it('clears deals when selection is reset to null', async () => {
       const { component, fixture } = await create();
-      component.selectedStoreId.set('kingsoopers:abc');
-      fixture.detectChanges(); // flush reset effect first
-      component.selectedWeekId.set('2026-W17');
+      component.onStoreChange('kingsoopers:abc');
+      component.onWeekChange('2026-W17');
       fixture.detectChanges();
       await fixture.whenStable();
-      // deals should now be populated
       expect(component.deals()).toEqual([mockDeal]);
 
-      component.selectedWeekId.set(null);
+      component.onWeekChange(null);
       fixture.detectChanges();
       await fixture.whenStable();
 
@@ -349,13 +330,12 @@ describe('DealsEditor', () => {
       });
       const { component, fixture } = await create(svc);
 
-      component.selectedStoreId.set('kingsoopers:abc');
-      fixture.detectChanges(); // flush reset effect
-      component.selectedWeekId.set('2026-W17');
+      component.onStoreChange('kingsoopers:abc');
+      component.onWeekChange('2026-W17');
       fixture.detectChanges(); // slow$ subscribed
 
       // Change selection before slow$ emits — switchMap cancels the W17 request
-      component.selectedWeekId.set('2026-W16');
+      component.onWeekChange('2026-W16');
       fixture.detectChanges();
       await fixture.whenStable();
 
@@ -392,9 +372,8 @@ describe('DealsEditor', () => {
 
     it('renders deals table when selection is valid', async () => {
       const { component, fixture } = await create();
-      component.selectedStoreId.set('kingsoopers:abc');
-      fixture.detectChanges(); // flush reset effect
-      component.selectedWeekId.set('2026-W17');
+      component.onStoreChange('kingsoopers:abc');
+      component.onWeekChange('2026-W17');
       fixture.detectChanges();
       await fixture.whenStable();
 

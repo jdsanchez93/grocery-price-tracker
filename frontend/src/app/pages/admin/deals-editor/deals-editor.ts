@@ -1,5 +1,5 @@
 import { AdminService, type Circular } from '@/app/core/services/admin.service';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
 import { DealColumnConfig, DealsTable } from "../../deals/deals-table/deals-table";
 import { DealEditDialog } from './deal-edit-dialog/deal-edit-dialog';
 import { SelectModule } from 'primeng/select';
@@ -48,25 +48,6 @@ export class DealsEditor {
   private editDialog = viewChild.required(DealEditDialog);
 
   constructor() {
-    // Store change: reset week, overrides, and selection.
-    effect(() => {
-      this.selectedStoreId(); // track
-      untracked(() => {
-        this.selectedWeekId.set(null);
-        this.dealsOverrides.set(new Map());
-        this.selectedDeals.set([]);
-      });
-    });
-
-    // Week change: reset overrides and selection (deals are a new set).
-    effect(() => {
-      this.selectedWeekId(); // track
-      untracked(() => {
-        this.dealsOverrides.set(new Map());
-        this.selectedDeals.set([]);
-      });
-    });
-
     forkJoin([this.adminService.getAllStores(), this.adminService.getAllCirculars()])
       .pipe(takeUntilDestroyed())
       .subscribe({
@@ -126,6 +107,19 @@ export class DealsEditor {
     return this.dealsState().deals.map(d => overrides.get(d.dealId) ?? d);
   });
   loadingDeals = computed(() => this.dealsState().loading);
+
+  onStoreChange(id: string | null): void {
+    this.selectedStoreId.set(id);
+    this.selectedWeekId.set(null);
+    this.dealsOverrides.set(new Map());
+    this.selectedDeals.set([]);
+  }
+
+  onWeekChange(id: string | null): void {
+    this.selectedWeekId.set(id);
+    this.dealsOverrides.set(new Map());
+    this.selectedDeals.set([]);
+  }
 
   openEditDialog(deals: Deal[]): void {
     this.editDialog().open(deals);
