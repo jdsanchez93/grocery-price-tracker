@@ -83,7 +83,7 @@ export class DealsEditor {
   selectedWeekId = signal<string | null>(null);
   selectedDeals = signal<Deal[]>([]);
 
-  loadingMeta = signal(false);
+  loadingMeta = signal(true);
   private dealsOverrides = signal<Map<string, Deal>>(new Map());
 
   allCirculars = signal<Circular[]>([]);
