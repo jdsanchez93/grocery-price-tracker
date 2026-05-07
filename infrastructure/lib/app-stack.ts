@@ -114,6 +114,15 @@ export class AppStack extends cdk.Stack {
       protocolPolicy: cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
     });
 
+    // index.html must never be cached — browsers need the latest to get correct hashed chunk filenames
+    const indexHtmlCachePolicy = new cloudfront.CachePolicy(this, 'IndexHtmlCachePolicy', {
+      minTtl: cdk.Duration.seconds(0),
+      defaultTtl: cdk.Duration.seconds(0),
+      maxTtl: cdk.Duration.seconds(0),
+      enableAcceptEncodingGzip: true,
+      enableAcceptEncodingBrotli: true,
+    });
+
     // --- CloudFront Distribution ---
     const distribution = new cloudfront.Distribution(this, 'Distribution', {
       defaultBehavior: {
@@ -123,6 +132,12 @@ export class AppStack extends cdk.Stack {
         responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
       },
       additionalBehaviors: {
+        '/index.html': {
+          origin: s3Origin,
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          cachePolicy: indexHtmlCachePolicy,
+          responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
+        },
         '/api/*': {
           origin: apiOrigin,
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
@@ -152,11 +167,32 @@ export class AppStack extends cdk.Stack {
     // --- Frontend deployment (only if dist exists) ---
     const frontendDistPath = path.join(__dirname, '../../frontend/dist/frontend/browser');
     if (fs.existsSync(frontendDistPath)) {
-      new s3deploy.BucketDeployment(this, 'FrontendDeployment', {
+      // Hashed JS/CSS assets — cache forever (hash changes on every new build)
+      new s3deploy.BucketDeployment(this, 'FrontendAssetsDeployment', {
         sources: [s3deploy.Source.asset(frontendDistPath)],
         destinationBucket: frontendBucket,
         distribution,
         distributionPaths: ['/*'],
+        exclude: ['index.html'],
+        cacheControl: [
+          s3deploy.CacheControl.maxAge(cdk.Duration.days(365)),
+          s3deploy.CacheControl.immutable(),
+        ],
+      });
+
+      // index.html — never cache so browsers always fetch the latest chunk manifest
+      new s3deploy.BucketDeployment(this, 'FrontendIndexDeployment', {
+        sources: [s3deploy.Source.asset(frontendDistPath)],
+        destinationBucket: frontendBucket,
+        distribution,
+        distributionPaths: ['/index.html'],
+        exclude: ['**'],
+        include: ['index.html'],
+        cacheControl: [
+          s3deploy.CacheControl.noCache(),
+          s3deploy.CacheControl.noStore(),
+          s3deploy.CacheControl.mustRevalidate(),
+        ],
       });
     }
 
