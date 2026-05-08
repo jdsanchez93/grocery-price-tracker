@@ -1,13 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Component, input, signal } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
-import { AuthService } from '@auth0/auth0-angular';
 import { CurrentDeals } from './current-deals';
 import { DealsService } from '@/app/core/services/deals.service';
 import { Deal } from '../../../core/models/deal.model';
 import { DealColumnConfig, DealsTable } from '../deals-table/deals-table';
 import { makeDeal } from '../../../core/models/test-utils';
-import { ROLES_CLAIM } from '@/app/core/auth/auth.constants';
+import { RoleService } from '@/app/core/services/role.service';
 
 @Component({
   selector: 'app-deals-table',
@@ -32,6 +31,12 @@ describe('CurrentDeals', () => {
     loading: mockLoading.asReadonly(),
   };
 
+  const mockIsPowerUser = signal(false);
+  const mockRoleService = {
+    isPowerUser: mockIsPowerUser.asReadonly(),
+    isAdmin: signal(false).asReadonly(),
+  };
+
   beforeEach(async () => {
     mockDeals.set([]);
     mockLoading.set(false);
@@ -41,7 +46,7 @@ describe('CurrentDeals', () => {
       imports: [CurrentDeals],
       providers: [
         { provide: DealsService, useValue: mockDealsService },
-        { provide: AuthService, useValue: { user$: user$.asObservable() } },
+        { provide: RoleService, useValue: mockRoleService }
       ],
     })
       .overrideComponent(CurrentDeals, {
@@ -128,40 +133,15 @@ describe('CurrentDeals', () => {
   });
 
   describe('rating column', () => {
-    it('should not include rating column when user is null', () => {
-      user$.next(null);
-      fixture.detectChanges();
+    it('should not include rating column for non-power users', () => {
+      mockIsPowerUser.set(false);
       expect(component.columns().map(c => c.field)).not.toContain('rating');
     });
 
-    it('should not include rating column when user has no roles', () => {
-      user$.next({ [ROLES_CLAIM]: [] });
-      fixture.detectChanges();
-      expect(component.columns().map(c => c.field)).not.toContain('rating');
-    });
-
-    it('should not include rating column when user has an unrelated role', () => {
-      user$.next({ [ROLES_CLAIM]: ['viewer'] });
-      fixture.detectChanges();
-      expect(component.columns().map(c => c.field)).not.toContain('rating');
-    });
-
-    it('should include rating column when user has power_user role', () => {
-      user$.next({ [ROLES_CLAIM]: ['power_user'] });
+    it('should include rating column for power users', () => {
+      mockIsPowerUser.set(true);
       fixture.detectChanges();
       expect(component.columns().map(c => c.field)).toContain('rating');
-    });
-
-    it('should include rating column when user has admin role', () => {
-      user$.next({ [ROLES_CLAIM]: ['admin'] });
-      fixture.detectChanges();
-      expect(component.columns().map(c => c.field)).toContain('rating');
-    });
-
-    it('should produce 6 columns for power users', () => {
-      user$.next({ [ROLES_CLAIM]: ['power_user'] });
-      fixture.detectChanges();
-      expect(component.columns().length).toBe(6);
     });
   });
 });
