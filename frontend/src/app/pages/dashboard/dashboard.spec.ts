@@ -5,6 +5,7 @@ import { Dashboard } from './dashboard';
 import { DealsService } from '@/app/core/services/deals.service';
 import { StoresService } from '@/app/core/services/stores.service';
 import { UserStore } from '@/app/core/models/store.model';
+import { RoleService } from '@/app/core/services/role.service';
 
 function makeUserStore(overrides: Partial<UserStore> = {}): UserStore {
   return {
@@ -20,6 +21,12 @@ function makeUserStore(overrides: Partial<UserStore> = {}): UserStore {
 describe('Dashboard', () => {
   const userStores = signal<UserStore[]>([]);
   const loading = signal(false);
+
+  const mockIsPowerUser = signal(false);
+  const mockRoleService = {
+    isPowerUser: mockIsPowerUser.asReadonly(),
+    isAdmin: signal(false).asReadonly(),
+  };
 
   function setup() {
     TestBed.configureTestingModule({
@@ -39,6 +46,10 @@ describe('Dashboard', () => {
             loading: loading.asReadonly(),
           },
         },
+        {
+          provide: RoleService,
+          useValue: mockRoleService
+        }
       ],
     });
     return TestBed.createComponent(Dashboard);
@@ -54,7 +65,7 @@ describe('Dashboard', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('should render all three widgets when stores exist', () => {
+  it('should render all three basic widgets when stores exist', () => {
     userStores.set([makeUserStore()]);
     const fixture = setup();
     fixture.detectChanges();
@@ -92,5 +103,21 @@ describe('Dashboard', () => {
     const fixture = setup();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('app-stats-widget')).toBeFalsy();
+  });
+
+  it('should not show app-top-deals-widget if user is not a power_user', () => {
+    mockIsPowerUser.set(false);
+    userStores.set([makeUserStore()]);
+    const fixture = setup();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('app-top-deals-widget')).toBeFalsy();
+  });
+
+  it('should show app-top-deals-widget if user a power_user', () => {
+    mockIsPowerUser.set(true);
+    userStores.set([makeUserStore()]);
+    const fixture = setup();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('app-top-deals-widget')).toBeTruthy();
   });
 });

@@ -5,11 +5,13 @@ import { StatsWidget } from './widgets/stats-widget';
 import { StoresWidget } from './widgets/stores-widget';
 import { DepartmentWidget } from './widgets/department-widget';
 import { StoresService } from '@/app/core/services/stores.service';
+import { RoleService } from '@/app/core/services/role.service';
+import { TopDealsWidget } from "./widgets/top-deals-widget/top-deals-widget";
 
 @Component({
   selector: 'app-dashboard',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [StatsWidget, StoresWidget, DepartmentWidget, ButtonModule, RouterLink],
+  imports: [StatsWidget, StoresWidget, DepartmentWidget, ButtonModule, RouterLink, TopDealsWidget],
   styles: `
     .empty-dashboard {
       display: flex;
@@ -49,6 +51,9 @@ import { StoresService } from '@/app/core/services/stores.service';
   template: `
     @if (hasStores()) {
       <div class="grid grid-cols-12 gap-8">
+        @if (isPowerUser()) {
+          <app-top-deals-widget class="col-span-12" />
+        }
         <app-stats-widget class="contents" />
         <app-stores-widget class="col-span-12 xl:col-span-6" />
         <app-department-widget class="col-span-12 xl:col-span-6" />
@@ -71,7 +76,8 @@ import { StoresService } from '@/app/core/services/stores.service';
   `,
 })
 export class Dashboard {
-  private storesService = inject(StoresService);
+  private storesService = inject(StoresService)
+  protected isPowerUser = inject(RoleService).isPowerUser;
 
   loading = this.storesService.loading;
   hasStores = () => this.storesService.getUserStores().length > 0;
