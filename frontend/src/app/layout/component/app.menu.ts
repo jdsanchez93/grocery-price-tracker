@@ -1,10 +1,8 @@
 import { Component, computed, inject, Signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterModule } from '@angular/router';
-import { AuthService } from '@auth0/auth0-angular';
 import { MenuItem } from 'primeng/api';
-import { Auth0User, ROLES_CLAIM } from '@/app/core/auth/auth.constants';
 import { AppMenuitem } from './app.menuitem';
+import { RoleService } from '@/app/core/services/role.service';
 
 @Component({
     selector: 'app-menu',
@@ -20,10 +18,7 @@ import { AppMenuitem } from './app.menuitem';
     </ul>`,
 })
 export class AppMenu {
-    private user = toSignal(inject(AuthService).user$) as Signal<Auth0User | null | undefined>;
-    private isAdmin = computed(() =>
-        (this.user()?.[ROLES_CLAIM] ?? []).includes('admin')
-    );
+    private roles = inject(RoleService);
 
     model = computed<MenuItem[]>(() => [
         {
@@ -41,7 +36,7 @@ export class AppMenu {
                 { label: 'My Stores', icon: 'pi pi-fw pi-shop', routerLink: ['/user/stores'] },
             ]
         },
-        ...(this.isAdmin() ? [{
+        ...(this.roles.isAdmin() ? [{
             label: 'Admin',
             path: '/admin',
             items: [

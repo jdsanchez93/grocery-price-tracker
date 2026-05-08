@@ -1,6 +1,6 @@
 export const ROLES_CLAIM = 'https://jd-sanchez.com/roles' as const;
 
-export type UserRole = 'admin' | 'power_user';
+export type UserRole = 'admin' | 'power_user' | 'user';
 
 export interface Auth0User {
     name?: string;
