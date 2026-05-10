@@ -5,11 +5,12 @@ import { makeDeal } from '@/app/core/models/test-utils';
 import { DealsService } from '@/app/core/services/deals.service';
 import { DealRatingBadge } from '@/app/shared/components/deal-rating-badge/deal-rating-badge';
 import { TopDealsWidget } from './top-deals-widget';
-import { provideRouter } from '@angular/router';
 
 @Component({ selector: 'app-deal-rating-badge', template: '' })
 class StubDealRatingBadge {
   rating = input.required<DealRating>();
+  productId = input<string>();
+  productName = input<string>();
 }
 
 function makeRating(overrides: Partial<DealRating> = {}): DealRating {
@@ -30,7 +31,6 @@ describe('TopDealsWidget', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: DealsService, useValue: { deals: deals.asReadonly() } },
-        provideRouter([])
       ],
     })
       .overrideComponent(TopDealsWidget, {
@@ -162,21 +162,5 @@ describe('TopDealsWidget', () => {
       expect(fixture.nativeElement.querySelectorAll('p-divider').length).toBe(0);
     });
 
-    it('should wrap badge in a routerLink when canonicalId is present', () => {
-      deals.set([makeDeal({ dealId: '1', canonicalProductId: 'pasta', rating: makeRating() })]);
-      const fixture = setup();
-      fixture.detectChanges();
-      const a = fixture.nativeElement.querySelector('a');
-      expect(a.getAttribute('href')).toEqual('/analytics/products/pasta/history');
-      expect(a.querySelector('app-deal-rating-badge')).toBeTruthy();
-    });
-
-    it('should render badge without a link when canonicalProductId is absent', () => {
-      deals.set([makeDeal({ dealId: '1', rating: makeRating() })]);
-      const fixture = setup();
-      fixture.detectChanges();
-      expect(fixture.nativeElement.querySelector('a')).toBeFalsy();
-      expect(fixture.nativeElement.querySelector('app-deal-rating-badge')).toBeTruthy();
-    });
   });
 });

@@ -160,4 +160,55 @@ describe('GET /api/me/products/:id/history', () => {
     expect(body.history[0].weekId).toBe('2026-W14');
     expect(body.history[1].weekId).toBe('2026-W10');
   });
+
+  // --- rating enrichment ---
+
+  it('attaches a rating to each history item when enough history exists', async () => {
+    vi.mocked(dbClient.getUserStores).mockResolvedValue([
+      { userId: 'user:test', storeInstanceId: STORE_A, addedAt: '2026-01-01T00:00:00.000Z' } as any,
+    ]);
+    vi.mocked(dbClient.getPriceHistory).mockResolvedValue([
+      mockDeal({ dealId: 'a', SK: 'DEAL#a', weekId: '2026-W10', priceNumber: 3.99 }),
+      mockDeal({ dealId: 'b', SK: 'DEAL#b', weekId: '2026-W11', priceNumber: 3.99 }),
+      mockDeal({ dealId: 'c', SK: 'DEAL#c', weekId: '2026-W12', priceNumber: 4.99 }),
+    ] as any);
+
+    const res = await getHistory('chicken-breast');
+    const body = await res.json();
+    expect(body.history.every((d: any) => d.rating)).toBe(true);
+  });
+
+  it('rates each deal against the other weeks (excluding its own week)', async () => {
+    vi.mocked(dbClient.getUserStores).mockResolvedValue([
+      { userId: 'user:test', storeInstanceId: STORE_A, addedAt: '2026-01-01T00:00:00.000Z' } as any,
+    ]);
+    vi.mocked(dbClient.getPriceHistory).mockResolvedValue([
+      mockDeal({ dealId: 'a', SK: 'DEAL#a', weekId: '2026-W10', priceNumber: 3.99 }),
+      mockDeal({ dealId: 'b', SK: 'DEAL#b', weekId: '2026-W11', priceNumber: 3.99 }),
+      mockDeal({ dealId: 'c', SK: 'DEAL#c', weekId: '2026-W12', priceNumber: 4.99 }),
+    ] as any);
+
+    const res = await getHistory('chicken-breast');
+    const body = await res.json();
+    const byWeek = Object.fromEntries(body.history.map((d: any) => [d.weekId, d.rating]));
+
+    // W10 ($3.99) vs [W11 $3.99, W12 $4.99]: at min → 'best'
+    expect(byWeek['2026-W10'].label).toBe('best');
+    // W12 ($4.99) vs [W10 $3.99, W11 $3.99]: well above avg → 'high'
+    expect(byWeek['2026-W12'].label).toBe('high');
+  });
+
+  it('omits rating when there is insufficient history (single week)', async () => {
+    vi.mocked(dbClient.getUserStores).mockResolvedValue([
+      { userId: 'user:test', storeInstanceId: STORE_A, addedAt: '2026-01-01T00:00:00.000Z' } as any,
+    ]);
+    vi.mocked(dbClient.getPriceHistory).mockResolvedValue([
+      mockDeal({ dealId: 'a', SK: 'DEAL#a', weekId: '2026-W10', priceNumber: 3.99 }),
+    ] as any);
+
+    const res = await getHistory('chicken-breast');
+    const body = await res.json();
+    expect(body.history).toHaveLength(1);
+    expect(body.history[0].rating).toBeUndefined();
+  });
 });
