@@ -27,9 +27,6 @@ import { DealsTable, DealColumnConfig } from '../../deals/deals-table/deals-tabl
     </div>
   `,
   styles: `
-    .page-container {
-      padding: 1.5rem;
-    }
     .page-header {
       margin-bottom: 1.5rem;
     }
