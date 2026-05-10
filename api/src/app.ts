@@ -552,9 +552,15 @@ export function createApp() {
 
     const history = await getPriceHistory(canonicalProductId, storeInstanceIds);
 
+    const enrichedHistory = history.map(deal => {
+      if (!deal.canonicalProductId || deal.priceNumber == null) return deal;
+      const rating = computeDealRating(deal.priceNumber, deal.weekId, history);
+      return rating ? { ...deal, rating } : deal;
+    });
+
     return c.json({
       productId: canonicalProductId,
-      history,
+      history: enrichedHistory,
       count: history.length,
     });
   });
