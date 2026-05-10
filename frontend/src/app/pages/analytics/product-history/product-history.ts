@@ -68,6 +68,7 @@ export class ProductHistory implements OnInit {
     },
     { field: 'name', header: 'Product', sortable: true },
     { field: 'priceDisplay', header: 'Price', sortable: true },
+    { field: 'rating', header: 'Rating', navigable: false },
   ]);
 
   ngOnInit(): void {

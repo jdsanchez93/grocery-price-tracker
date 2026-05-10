@@ -185,14 +185,12 @@
               }
             }
             @case ('rating') {
-              @if (deal.rating && deal.canonicalProductId) {
-                <a
-                  [routerLink]="['/analytics/products', deal.canonicalProductId, 'history']"
-                  class="rating-link"
-                  [attr.aria-label]="'View price history for ' + deal.name"
-                >
-                  <app-deal-rating-badge [rating]="deal.rating" />
-                </a>
+              @if (deal.rating) {
+                <app-deal-rating-badge
+                  [rating]="deal.rating"
+                  [productId]="col.navigable === false ? undefined : deal.canonicalProductId"
+                  [productName]="deal.name"
+                />
               }
             }
             @case ('canonicalProductId') {

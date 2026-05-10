@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { DealRatingBadge } from './deal-rating-badge';
 import { DealRating } from '../../../core/models/deal.model';
 
@@ -20,6 +21,7 @@ describe('DealRatingBadge', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [DealRatingBadge],
+      providers: [provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(DealRatingBadge);
@@ -61,6 +63,29 @@ describe('DealRatingBadge', () => {
       const cfg = component.config();
       expect(cfg.severity).toBe('warn');
       expect(cfg.value).toBe('High');
+    });
+  });
+
+  describe('linking', () => {
+    it('renders an anchor with routerLink when productId is set', () => {
+      fixture.componentRef.setInput('productId', 'pasta');
+      fixture.componentRef.setInput('productName', 'Spaghetti');
+      fixture.detectChanges();
+      const a = fixture.nativeElement.querySelector('a');
+      expect(a).toBeTruthy();
+      expect(a.getAttribute('href')).toBe('/analytics/products/pasta/history');
+      expect(a.getAttribute('aria-label')).toBe('View price history for Spaghetti');
+    });
+
+    it('renders no anchor when productId is unset', () => {
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('a')).toBeFalsy();
+    });
+
+    it('uses generic aria-label when productName is unset', () => {
+      fixture.componentRef.setInput('productId', 'pasta');
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('a').getAttribute('aria-label')).toBe('View price history');
     });
   });
 

@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, contentChild, input, model, signal, TemplateRef } from '@angular/core';
 import { CurrencyPipe, NgTemplateOutlet } from '@angular/common';
-import { RouterLink } from '@angular/router';
 import { Table, TableModule } from 'primeng/table';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { InputTextModule } from 'primeng/inputtext';
@@ -23,6 +22,7 @@ export interface DealColumnConfig {
   filterType?: 'text' | 'multiselect';
   filterField?: string;
   style?: Record<string, string>;
+  navigable?: boolean;
 }
 
 @Component({
@@ -30,7 +30,6 @@ export interface DealColumnConfig {
   imports: [
     CurrencyPipe,
     NgTemplateOutlet,
-    RouterLink,
     TableModule,
     MultiSelectModule,
     InputTextModule,

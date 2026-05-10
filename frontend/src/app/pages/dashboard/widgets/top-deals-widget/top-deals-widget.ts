@@ -3,7 +3,6 @@ import { DealsService } from '@/app/core/services/deals.service';
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { DealRatingBadge } from "@/app/shared/components/deal-rating-badge/deal-rating-badge";
 import { DividerModule } from 'primeng/divider';
-import { RouterLink } from '@angular/router';
 
 type RatedDeal = Deal & { rating: DealRating };
 
@@ -12,7 +11,7 @@ const LABEL_RANK: Record<DealRating['label'], number> = { best: 0, good: 1, typi
 
 @Component({
   selector: 'app-top-deals-widget',
-  imports: [DealRatingBadge, DividerModule, RouterLink],
+  imports: [DealRatingBadge, DividerModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="card">
@@ -32,16 +31,11 @@ const LABEL_RANK: Record<DealRating['label'], number> = { best: 0, good: 1, typi
                 <div class="mt-1 text-muted-color">{{ d.priceDisplay }}</div>
               </div>
               <div class="mt-2 md:mt-0 ml-0 md:ml-8 flex items-center">
-                @if (d.canonicalProductId) {
-                  <a
-                    [routerLink]="['/analytics/products', d.canonicalProductId, 'history']"
-                    [attr.aria-label]="'View price history for ' + d.name"
-                    class="rating-link">
-                      <app-deal-rating-badge [rating]="d.rating" />
-                  </a>
-                } @else {
-                  <app-deal-rating-badge [rating]="d.rating" />
-                }
+                <app-deal-rating-badge
+                  [rating]="d.rating"
+                  [productId]="d.canonicalProductId"
+                  [productName]="d.name"
+                />
               </div>
             </li>
             @if (!last) {

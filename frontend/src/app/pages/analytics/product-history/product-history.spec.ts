@@ -107,9 +107,16 @@ describe('ProductHistory', () => {
 
 
   describe('columns computed', () => {
-    it('should have 4 columns', async () => {
+    it('should have 5 columns', async () => {
       await setup();
-      expect(component.columns().length).toBe(4);
+      expect(component.columns().length).toBe(5);
+    });
+
+    it('should include rating column with navigable=false', async () => {
+      await setup();
+      const ratingCol = component.columns().find(c => c.field === 'rating');
+      expect(ratingCol).toBeTruthy();
+      expect(ratingCol?.navigable).toBe(false);
     });
 
     it('should have weekId as first column', async () => {
