@@ -39,3 +39,10 @@ export interface DealsResponse {
   deals: Deal[];
   count: number;
 }
+
+export const LABEL_RANK: Record<DealRating['label'], number> = {
+  best: 0,
+  good: 1,
+  typical: 2,
+  high: 3,
+};
