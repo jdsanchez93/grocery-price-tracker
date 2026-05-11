@@ -34,7 +34,9 @@ export class LayoutService {
         activePath: null
     });
 
-    private _isMobile = signal(window.matchMedia('(max-width: 991px)').matches);
+    private _isMobile = signal(typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+        ? window.matchMedia('(max-width: 991px)').matches
+        : false);
     isMobile$ = this._isMobile.asReadonly();
 
     theme = computed(() => (this.layoutConfig().darkTheme ? 'light' : 'dark'));
@@ -70,8 +72,10 @@ export class LayoutService {
             this.handleDarkModeTransition(config);
         });
 
-        const mq = window.matchMedia('(max-width: 991px)');
-        mq.addEventListener('change', (e) => this._isMobile.set(e.matches));
+        if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+            const mq = window.matchMedia('(max-width: 991px)');
+            mq.addEventListener('change', (e) => this._isMobile.set(e.matches));
+        }
     }
 
     private handleDarkModeTransition(config: LayoutConfig): void {
