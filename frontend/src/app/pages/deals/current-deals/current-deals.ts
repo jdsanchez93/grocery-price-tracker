@@ -1,34 +1,40 @@
-import { ChangeDetectionStrategy, Component, Signal, computed, inject } from '@angular/core';
-import { DealColumnConfig, DealsTable } from "../deals-table/deals-table";
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { DealColumnConfig, DealsTable } from '../deals-table/deals-table';
+import { DealsList } from '../deals-list/deals-list';
 import { DealsService } from '@/app/core/services/deals.service';
 import { RoleService } from '@/app/core/services/role.service';
+import { LayoutService } from '@/app/layout/service/layout.service';
 
 @Component({
   selector: 'app-current-deals',
-  imports: [DealsTable],
+  imports: [DealsTable, DealsList],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-deals-table
-      [deals]="deals()"
-      [columns]="columns()"
-      [loading]="loading()"
-    />
-  `
+    @if (isMobile()) {
+      <app-deals-list
+        [deals]="deals()"
+        [loading]="loading()"
+        [showRating]="roles.isPowerUser()"
+      />
+    } @else {
+      <app-deals-table
+        [deals]="deals()"
+        [columns]="columns()"
+        [loading]="loading()"
+      />
+    }
+  `,
 })
 export class CurrentDeals {
   private dealsService = inject(DealsService);
-  private roles = inject(RoleService);
+  private layoutService = inject(LayoutService);
+  protected roles = inject(RoleService);
 
   deals = this.dealsService.deals;
-
   loading = this.dealsService.loading;
+  isMobile = this.layoutService.isMobile$;
 
   columns = computed<DealColumnConfig[]>(() => [
-    // {
-    //   field: 'image',
-    //   header: '',
-    //   style: { width: '60px' }
-    // },
     {
       field: 'store',
       header: 'Store',

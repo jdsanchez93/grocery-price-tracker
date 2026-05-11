@@ -34,6 +34,9 @@ export class LayoutService {
         activePath: null
     });
 
+    private _isMobile = signal(window.matchMedia('(max-width: 991px)').matches);
+    isMobile$ = this._isMobile.asReadonly();
+
     theme = computed(() => (this.layoutConfig().darkTheme ? 'light' : 'dark'));
 
     isSidebarActive = computed(() => this.layoutState().overlayMenuActive || this.layoutState().mobileMenuActive);
@@ -66,6 +69,9 @@ export class LayoutService {
 
             this.handleDarkModeTransition(config);
         });
+
+        const mq = window.matchMedia('(max-width: 991px)');
+        mq.addEventListener('change', (e) => this._isMobile.set(e.matches));
     }
 
     private handleDarkModeTransition(config: LayoutConfig): void {

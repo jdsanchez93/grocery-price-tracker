@@ -11,6 +11,7 @@ import { ButtonModule } from 'primeng/button';
 import { ImageModule } from 'primeng/image';
 import { Deal } from '../../../core/models/deal.model';
 import { getStoreAbbr, getStoreDisplayName, getStoreSeverity, TagSeverity } from '../../../core/models/store.model';
+import { getLoyaltyIcon, getLoyaltyTooltip } from '../../../core/models/loyalty';
 import { DealRatingBadge } from '../../../shared/components/deal-rating-badge/deal-rating-badge';
 
 export type DealColumnField = 'image' | 'store' | 'name' | 'dept' | 'priceDisplay' | 'quantity' | 'loyalty' | 'weekId' | 'rating' | 'canonicalProductId';
@@ -139,17 +140,11 @@ export class DealsTable {
   }
 
   getLoyaltyIcon(loyalty: string): string {
-    const l = loyalty.toLowerCase();
-    if (l.includes('digital') || l.includes('coupon')) return 'pi pi-tag';
-    if (l.includes('card') || l === 'card_required') return 'pi pi-credit-card';
-    return 'pi pi-star';
+    return getLoyaltyIcon(loyalty);
   }
 
   getLoyaltyTooltip(loyalty: string): string {
-    const l = loyalty.toLowerCase();
-    if (l.includes('digital') || l.includes('coupon')) return 'Requires digital coupon';
-    if (l.includes('card') || l === 'card_required') return 'Requires loyalty card';
-    return loyalty;
+    return getLoyaltyTooltip(loyalty);
   }
 
   getFieldValue(deal: Deal, field: DealColumnField): string {

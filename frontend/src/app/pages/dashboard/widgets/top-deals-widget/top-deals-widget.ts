@@ -1,4 +1,4 @@
-import { Deal, DealRating } from '@/app/core/models/deal.model';
+import { Deal, DealRating, LABEL_RANK } from '@/app/core/models/deal.model';
 import { DealsService } from '@/app/core/services/deals.service';
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { DealRatingBadge } from "@/app/shared/components/deal-rating-badge/deal-rating-badge";
@@ -7,7 +7,6 @@ import { DividerModule } from 'primeng/divider';
 type RatedDeal = Deal & { rating: DealRating };
 
 const GOOD_RATINGS: DealRating['label'][] = ['best', 'good'];
-const LABEL_RANK: Record<DealRating['label'], number> = { best: 0, good: 1, typical: 2, high: 3 };
 
 @Component({
   selector: 'app-top-deals-widget',
