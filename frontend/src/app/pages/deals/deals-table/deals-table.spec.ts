@@ -78,6 +78,22 @@ describe('DealsTable', () => {
       expect(fields).toContain('dept');
     });
 
+    it('globalFilterFields always includes canonicalProductId even when not in columns', () => {
+      const fields = component.globalFilterFields();
+      expect(fields).toContain('canonicalProductId');
+    });
+
+    it('globalFilterFields does not duplicate canonicalProductId when it is an explicit column', () => {
+      const colsWithCanonical: DealColumnConfig[] = [
+        ...TEST_COLUMNS,
+        { field: 'canonicalProductId', header: 'Product ID' },
+      ];
+      fixture.componentRef.setInput('columns', colsWithCanonical);
+      fixture.detectChanges();
+      const fields = component.globalFilterFields();
+      expect(fields.filter(f => f === 'canonicalProductId')).toHaveLength(1);
+    });
+
     it('hasExpandableRows should be true when deals have priceVariants', () => {
       expect(component.hasExpandableRows()).toBe(true);
     });

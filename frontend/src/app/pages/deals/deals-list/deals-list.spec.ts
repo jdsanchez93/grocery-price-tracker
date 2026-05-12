@@ -83,6 +83,36 @@ describe('DealsList', () => {
       expect(fixture.componentInstance.visibleDeals().map(d => d.dealId)).toEqual(['2']);
     });
 
+    it('filters by canonicalProductId (case-insensitive)', () => {
+      const deals = [
+        makeDeal({ dealId: '1', name: 'Pepsi 12-Pack', canonicalProductId: 'soda-pepsi-12pack' }),
+        makeDeal({ dealId: '2', name: 'Orange Juice', canonicalProductId: 'juice-oj' }),
+      ];
+      const fixture = setup(deals);
+      fixture.componentInstance.searchQuery.set('soda');
+      expect(fixture.componentInstance.visibleDeals().map(d => d.dealId)).toEqual(['1']);
+    });
+
+    it('matches canonicalProductId even when name does not match', () => {
+      const deals = [
+        makeDeal({ dealId: '1', name: 'Cola 12-Pack', canonicalProductId: 'soda-cola-12pack' }),
+        makeDeal({ dealId: '2', name: 'Milk', canonicalProductId: 'dairy-milk' }),
+      ];
+      const fixture = setup(deals);
+      fixture.componentInstance.searchQuery.set('dairy');
+      expect(fixture.componentInstance.visibleDeals().map(d => d.dealId)).toEqual(['2']);
+    });
+
+    it('treats deals with undefined canonicalProductId as non-matches without erroring', () => {
+      const deals = [
+        makeDeal({ dealId: '1', name: 'Apples', canonicalProductId: undefined }),
+        makeDeal({ dealId: '2', name: 'Soda', canonicalProductId: 'soda-pepsi' }),
+      ];
+      const fixture = setup(deals);
+      fixture.componentInstance.searchQuery.set('soda');
+      expect(fixture.componentInstance.visibleDeals().map(d => d.dealId)).toEqual(['2']);
+    });
+
     it('returns no deals when nothing matches', () => {
       const deals = [makeDeal({ dealId: '1', name: 'Apples' })];
       const fixture = setup(deals);

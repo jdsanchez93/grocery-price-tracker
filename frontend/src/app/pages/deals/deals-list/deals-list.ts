@@ -95,7 +95,8 @@ export class DealsList {
         (d.name?.toLowerCase().includes(q) ?? false) ||
         (d.details?.toLowerCase().includes(q) ?? false) ||
         d.dept.toLowerCase().includes(q) ||
-        getStoreDisplayName(d.storeInstanceId).toLowerCase().includes(q)
+        getStoreDisplayName(d.storeInstanceId).toLowerCase().includes(q) ||
+        (d.canonicalProductId?.toLowerCase().includes(q) ?? false)
       );
     }
     if (key) {
