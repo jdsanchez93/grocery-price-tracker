@@ -62,11 +62,15 @@ export class DealsTable {
   expandedRows = signal<Record<string, boolean>>({});
   globalFilterValue = signal('');
 
-  globalFilterFields = computed(() =>
-    this.columns()
+  globalFilterFields = computed(() => {
+    const fields = this.columns()
       .filter(c => c.field !== 'image')
-      .map(c => c.filterField ?? (c.field === 'store' ? 'storeInstanceId' : c.field))
-  );
+      .map(c => c.filterField ?? (c.field === 'store' ? 'storeInstanceId' : c.field));
+    if (!fields.includes('canonicalProductId')) {
+      fields.push('canonicalProductId');
+    }
+    return fields;
+  });
 
   hasExpandableRows = computed(() =>
     this.deals().some(d => d.priceVariants && d.priceVariants.length > 0)
