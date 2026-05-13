@@ -18,6 +18,13 @@ npm run build      # Production build to dist/
 npm test           # Vitest with jsdom
 ```
 
+### Scraper Worker (`scraper-worker/`)
+```bash
+npm run dev        # Local dev server on port 3010 (tsx watch + .env)
+npm start          # Production start
+```
+Separate Hono.js scraping service with Docker support. Secured by `X-Api-Key` header. Exposes `POST /scrape/kingsoopers` and `GET /health`.
+
 ### Infrastructure (`infrastructure/`)
 ```bash
 npm run build      # Compile TypeScript
@@ -31,15 +38,18 @@ npm test           # Jest
 - **API**: Hono.js running on AWS Lambda (`lambda.ts`) or locally (`local.ts`). No build step — uses `tsx` at runtime.
 - **Frontend**: Angular v20+ with PrimeNG v21, Tailwind CSS v4
 - **Database**: DynamoDB single-table design (`GroceryDeals` table, name in `TABLE_NAME` env var)
-- **Auth**: Auth0 JWT with scope-based authorization (`user`, `admin`, `browse` scopes)
+- **Auth**: Auth0 JWT with permission-based authorization (`stores:read`, `deals:read`, `user-stores:read`, etc.)
 - **Infra**: AWS CDK v2
 
 ### API Structure (`api/src/`)
-- `app.ts` — Route definitions. Routes are `/api/stores/:type`, `/api/admin/*`, `/api/me/*`
-- `middleware/auth.ts` — `authMiddleware({ required, scopes })` factory; injects `AuthUser` into context
+- `app.ts` — Route definitions. Routes are `/stores`, `/admin/*`, `/me/*`
+- `middleware/auth.ts` — `authMiddleware({ required })` + `requirePermission(...perms)` for fine-grained permission checks; injects `AuthUser` into context
 - `db/client.ts` — DynamoDB client (AWS SDK v3 `@aws-sdk/lib-dynamodb`)
 - `scraper/` — `kingsoopers.ts` (Kroger API), `safeway.ts` (Flipp API), `products.ts` (canonical product matching). All return `StandardDeal` objects.
 - `types/database.ts` — All DynamoDB item type definitions
+
+#### Key permissions used by routes
+`stores:read`, `stores:write`, `deals:read`, `deals:write`, `user-stores:read`, `user-stores:write`, `history:read`, `scraper:run`
 
 ### DynamoDB Key Patterns
 ```
@@ -58,10 +68,10 @@ Store instance IDs are `{type}:{sha256_hash(identifiers)}`. Supported chains: `k
 
 ### Frontend Structure (`frontend/src/app/`)
 - `app.routes.ts` — Lazy-loaded standalone routes
-- `core/auth/` — Auth0 integration, `roleGuard` for admin routes
+- `core/auth/` — Auth0 integration; `roleGuard('role1', 'role2')` (takes role args) for protected routes; `landingGuard` redirects authenticated users past the landing page
 - `core/models/` — TypeScript interfaces for deals, stores, admin
-- `core/services/` — `deals.service.ts`, `stores.service.ts`, `admin.service.ts` (all `providedIn: 'root'`)
-- `pages/` — Feature pages: `dashboard/`, `deals/`, `stores/`, `admin/`
+- `core/services/` — `deals.service.ts`, `stores.service.ts`, `admin.service.ts`, `analytics.service.ts`, `profile.service.ts`, `role.service.ts` (all `providedIn: 'root'`)
+- `pages/` — Feature pages: `dashboard/`, `deals/`, `stores/`, `admin/`, `landing/`, `onboarding/`, `user/`, `analytics/`
 - `shared/components/` — Reusable components
 
 ## Angular Rules (frontend/)
