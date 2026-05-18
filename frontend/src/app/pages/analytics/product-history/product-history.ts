@@ -3,10 +3,11 @@ import { ActivatedRoute } from '@angular/router';
 import { AnalyticsService } from '../../../core/services/analytics.service';
 import { Deal } from '../../../core/models/deal.model';
 import { DealsTable, DealColumnConfig } from '../../deals/deals-table/deals-table';
+import { PriceTrendChart } from './price-trend-chart/price-trend-chart';
 
 @Component({
   selector: 'app-product-history',
-  imports: [DealsTable],
+  imports: [DealsTable, PriceTrendChart],
   template: `
     <div class="page-container">
       <div class="page-header">
@@ -17,6 +18,9 @@ import { DealsTable, DealColumnConfig } from '../../deals/deals-table/deals-tabl
       @if (error()) {
         <div class="error-message" role="alert">{{ error() }}</div>
       } @else {
+        @if (!loading()) {
+          <app-price-trend-chart [history]="history()" />
+        }
         <app-deals-table
           [deals]="history()"
           [columns]="columns()"
@@ -37,6 +41,10 @@ import { DealsTable, DealColumnConfig } from '../../deals/deals-table/deals-tabl
       margin: 0;
       color: var(--p-text-muted-color);
       font-size: 0.875rem;
+    }
+    app-price-trend-chart {
+      display: block;
+      margin-bottom: 1.5rem;
     }
     .error-message {
       padding: 1rem;
