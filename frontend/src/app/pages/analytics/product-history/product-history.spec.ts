@@ -6,6 +6,7 @@ import { ProductHistory } from './product-history';
 import { AnalyticsService } from '../../../core/services/analytics.service';
 import { Deal } from '../../../core/models/deal.model';
 import { DealColumnConfig, DealsTable } from '../../deals/deals-table/deals-table';
+import { PriceTrendChart } from './price-trend-chart/price-trend-chart';
 import { makeDeal } from '../../../core/models/test-utils';
 
 @Component({ selector: 'app-deals-table', template: '' })
@@ -14,6 +15,11 @@ class StubDealsTable {
   columns = input.required<DealColumnConfig[]>();
   loading = input(false);
   rows = input(20);
+}
+
+@Component({ selector: 'app-price-trend-chart', template: '' })
+class StubPriceTrendChart {
+  history = input.required<Deal[]>();
 }
 
 function makeRoute(id: string) {
@@ -47,8 +53,8 @@ describe('ProductHistory', () => {
       ],
     })
       .overrideComponent(ProductHistory, {
-        remove: { imports: [DealsTable] },
-        add: { imports: [StubDealsTable] },
+        remove: { imports: [DealsTable, PriceTrendChart] },
+        add: { imports: [StubDealsTable, StubPriceTrendChart] },
       })
       .compileComponents();
 
