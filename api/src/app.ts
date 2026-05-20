@@ -4,6 +4,7 @@ import { logger } from './logger';
 import {
   fetchWeeklyDeals,
   fetchAndPersistWeeklyDeals,
+  NoCircularError,
 } from './scraper/kingsoopers';
 import {
   fetchPublications as fetchSafewayPublications,
@@ -244,9 +245,17 @@ export function createApp() {
 
     switch (storeInstance.identifiers.type) {
       case 'kingsoopers': {
-        const ksResult = await fetchAndPersistWeeklyDeals(
-          storeInstance.identifiers, storeInstance.instanceId, { force, preview }
-        );
+        let ksResult;
+        try {
+          ksResult = await fetchAndPersistWeeklyDeals(
+            storeInstance.identifiers, storeInstance.instanceId, { force, preview }
+          );
+        } catch (err) {
+          if (err instanceof NoCircularError) {
+            return c.json({ error: err.message }, 404);
+          }
+          throw err;
+        }
         if (ksResult.alreadyScraped) {
           return c.json({
             success: true,
