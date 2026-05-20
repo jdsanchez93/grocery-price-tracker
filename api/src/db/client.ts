@@ -369,37 +369,6 @@ export async function updateStoreInstance(
   }
 }
 
-// Backfill `timezone` on every StoreInstanceItem missing it. Used once during the timezone migration.
-export async function backfillStoreTimezones(defaultTimezone: string = 'America/Denver'): Promise<{ updated: number; skipped: number }> {
-  const stores = await getAllStores();
-  let updated = 0;
-  let skipped = 0;
-
-  for (const store of stores) {
-    if (store.timezone) {
-      skipped++;
-      continue;
-    }
-    await docClient.send(new UpdateCommand({
-      TableName: TABLE_NAME,
-      Key: {
-        PK: Keys.storeInstance.pk(store.instanceId),
-        SK: Keys.storeInstance.sk(),
-      },
-      UpdateExpression: 'SET #tz = :tz, updatedAt = :now',
-      ExpressionAttributeNames: { '#tz': 'timezone' },
-      ExpressionAttributeValues: {
-        ':tz': defaultTimezone,
-        ':now': new Date().toISOString(),
-      },
-    }));
-    updated++;
-  }
-
-  invalidateStoresCache();
-  return { updated, skipped };
-}
-
 export async function getOrCreateStoreInstance(
   identifiers: StoreIdentifiers,
   name: string

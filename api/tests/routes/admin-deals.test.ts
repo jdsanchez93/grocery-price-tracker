@@ -25,7 +25,6 @@ vi.mock('../../src/db/client', () => ({
   getPriceHistory: vi.fn(),
   getDeal: vi.fn(),
   updateDeal: vi.fn(),
-  backfillStoreTimezones: vi.fn(),
 }));
 
 vi.mock('../../src/scraper/kingsoopers', () => ({

@@ -31,7 +31,6 @@ import {
   getDealsForStoreWeek,
   updateDeal,
   getDeal,
-  backfillStoreTimezones,
 } from './db/client';
 import {
   getCurrentWeekId,
@@ -153,14 +152,6 @@ export function createApp() {
     }
 
     return c.json({ success: true, store });
-  });
-
-  // One-shot: backfill `timezone` on every StoreInstanceItem missing it.
-  // Temporary endpoint added with the timezone migration; delete once run in prod.
-  app.post('/admin/stores/backfill-timezone', requirePermission('stores:write'), async (c) => {
-    const defaultTz = c.req.query('timezone') ?? 'America/Denver';
-    const result = await backfillStoreTimezones(defaultTz);
-    return c.json({ success: true, defaultTimezone: defaultTz, ...result });
   });
 
   // Get scrape status for store(s)
