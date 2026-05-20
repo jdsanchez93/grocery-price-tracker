@@ -292,7 +292,8 @@ export async function writeStoreInstance(
   identifiers: StoreIdentifiers,
   name: string,
   enabled: boolean = true,
-  address?: StoreAddress
+  address?: StoreAddress,
+  timezone: string = 'America/Denver'
 ): Promise<StoreInstanceItem> {
   const now = new Date().toISOString();
   const instanceId = generateStoreInstanceId(identifiers);
@@ -307,6 +308,7 @@ export async function writeStoreInstance(
     identifiers,
     enabled,
     ...(address && { address }),
+    timezone,
     createdAt: now,
     updatedAt: now,
   };
@@ -322,19 +324,23 @@ export async function writeStoreInstance(
 
 export async function updateStoreInstance(
   instanceId: string,
-  updates: { name: string; address?: StoreAddress }
+  updates: { name: string; address?: StoreAddress; timezone?: string }
 ): Promise<StoreInstanceItem | null> {
   const now = new Date().toISOString();
 
   const hasAddress = !!updates.address;
-  const updateExpression = hasAddress
-    ? 'SET #name = :name, updatedAt = :now, address = :addr'
-    : 'SET #name = :name, updatedAt = :now REMOVE address';
+  const hasTimezone = !!updates.timezone;
+  const setClauses = ['#name = :name', 'updatedAt = :now'];
+  if (hasAddress) setClauses.push('address = :addr');
+  if (hasTimezone) setClauses.push('#tz = :tz');
+  const updateExpression =
+    'SET ' + setClauses.join(', ') + (hasAddress ? '' : ' REMOVE address');
 
   const expressionAttributeValues: Record<string, unknown> = {
     ':name': updates.name,
     ':now': now,
     ...(hasAddress && { ':addr': updates.address }),
+    ...(hasTimezone && { ':tz': updates.timezone }),
   };
 
   try {
@@ -346,7 +352,10 @@ export async function updateStoreInstance(
         SK: Keys.storeInstance.sk(),
       },
       UpdateExpression: updateExpression,
-      ExpressionAttributeNames: { '#name': 'name' },
+      ExpressionAttributeNames: {
+        '#name': 'name',
+        ...(hasTimezone && { '#tz': 'timezone' }),
+      },
       ExpressionAttributeValues: expressionAttributeValues,
       ConditionExpression: 'attribute_exists(PK)',
       ReturnValues: 'ALL_NEW',
@@ -358,6 +367,37 @@ export async function updateStoreInstance(
     }
     throw err;
   }
+}
+
+// Backfill `timezone` on every StoreInstanceItem missing it. Used once during the timezone migration.
+export async function backfillStoreTimezones(defaultTimezone: string = 'America/Denver'): Promise<{ updated: number; skipped: number }> {
+  const stores = await getAllStores();
+  let updated = 0;
+  let skipped = 0;
+
+  for (const store of stores) {
+    if (store.timezone) {
+      skipped++;
+      continue;
+    }
+    await docClient.send(new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: {
+        PK: Keys.storeInstance.pk(store.instanceId),
+        SK: Keys.storeInstance.sk(),
+      },
+      UpdateExpression: 'SET #tz = :tz, updatedAt = :now',
+      ExpressionAttributeNames: { '#tz': 'timezone' },
+      ExpressionAttributeValues: {
+        ':tz': defaultTimezone,
+        ':now': new Date().toISOString(),
+      },
+    }));
+    updated++;
+  }
+
+  invalidateStoresCache();
+  return { updated, skipped };
 }
 
 export async function getOrCreateStoreInstance(

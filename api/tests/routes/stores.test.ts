@@ -22,18 +22,18 @@ vi.mock('../../src/db/client', () => ({
   createUser: vi.fn(),
   updateUserOnboarded: vi.fn(),
   getPriceHistory: vi.fn(),
+  backfillStoreTimezones: vi.fn(),
 }));
 
 vi.mock('../../src/scraper/kingsoopers', () => ({
   fetchWeeklyDeals: vi.fn(),
   fetchAndPersistWeeklyDeals: vi.fn(),
   fetchCirculars: vi.fn(),
-  extractWeeklyAdMetadata: vi.fn(),
 }));
 
 vi.mock('../../src/scraper/safeway', () => ({
   fetchPublications: vi.fn(),
-  extractWeeklyAdMetadata: vi.fn(),
+  extractWeeklyAds: vi.fn().mockReturnValue([]),
   fetchWeeklyDeals: vi.fn(),
   fetchAndPersistWeeklyDeals: vi.fn(),
 }));
@@ -52,6 +52,7 @@ const mockStoreItem = {
   name: 'King Soopers #1',
   identifiers: { type: 'kingsoopers' as const, storeId: '123', facilityId: '456' },
   enabled: true,
+  timezone: 'America/Denver',
   createdAt: '2024-01-01T00:00:00.000Z',
   updatedAt: '2024-01-01T00:00:00.000Z',
 };
@@ -121,6 +122,7 @@ const mockStore = {
   name: 'Updated Name',
   identifiers: { type: 'kingsoopers', storeId: '123', facilityId: '456' },
   enabled: true,
+  timezone: 'America/Denver',
   createdAt: '2024-01-01T00:00:00.000Z',
   updatedAt: '2024-01-02T00:00:00.000Z',
 };
@@ -194,6 +196,7 @@ describe('PATCH /api/admin/stores/:instanceId', () => {
     expect(vi.mocked(dbClient.updateStoreInstance)).toHaveBeenCalledWith(INSTANCE_ID, {
       name: 'Updated Name',
       address,
+      timezone: undefined,
     });
   });
 
@@ -203,6 +206,17 @@ describe('PATCH /api/admin/stores/:instanceId', () => {
     expect(vi.mocked(dbClient.updateStoreInstance)).toHaveBeenCalledWith(INSTANCE_ID, {
       name: 'Updated Name',
       address: undefined,
+      timezone: undefined,
+    });
+  });
+
+  it('passes timezone through when provided', async () => {
+    vi.mocked(dbClient.updateStoreInstance).mockResolvedValue(mockStore);
+    await patch(INSTANCE_ID, { name: 'Updated Name', timezone: 'America/Los_Angeles' });
+    expect(vi.mocked(dbClient.updateStoreInstance)).toHaveBeenCalledWith(INSTANCE_ID, {
+      name: 'Updated Name',
+      address: undefined,
+      timezone: 'America/Los_Angeles',
     });
   });
 });

@@ -30,6 +30,7 @@ const mockStoreItem = {
   name: 'King Soopers #1',
   identifiers: { type: 'kingsoopers' as const, storeId: '1', facilityId: '2' },
   enabled: true,
+  timezone: 'America/Denver',
   createdAt: '2024-01-01T00:00:00.000Z',
   updatedAt: '2024-01-01T00:00:00.000Z',
 };

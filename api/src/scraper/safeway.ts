@@ -1,5 +1,5 @@
 import { writeDeals, writeCircular } from '../db/client';
-import { getCurrentWeekId, SafewayIdentifiers } from '../types/database';
+import { SafewayIdentifiers } from '../types/database';
 import { findCanonicalProductId } from './products';
 import type { StandardDeal } from './types';
 
@@ -92,24 +92,21 @@ export async function fetchPublications(
 }
 
 /**
- * Extract weekly ad metadata from publications list
+ * Extract all Weekly Ad entries from a Flipp publications response, sorted by startDate.
+ * Returns multiple entries when Flipp exposes both current and preview ads simultaneously.
+ * Dates are store-local calendar dates (Flipp's offset is its server TZ, not the store's).
  */
-export function extractWeeklyAdMetadata(
+export function extractWeeklyAds(
   publications: FlippPublication[]
-): WeeklyAdMetadata | null {
-  const weeklyAd = publications.find(
-    (pub) => pub.external_display_name === 'Weekly Ad'
-  );
-
-  if (!weeklyAd) {
-    return null;
-  }
-
-  return {
-    circularId: weeklyAd.id.toString(),
-    startDate: weeklyAd.valid_from.split('T')[0],
-    endDate: weeklyAd.valid_to.split('T')[0],
-  };
+): WeeklyAdMetadata[] {
+  return publications
+    .filter((pub) => pub.external_display_name === 'Weekly Ad')
+    .map((pub) => ({
+      circularId: pub.id.toString(),
+      startDate: pub.valid_from.split('T')[0],
+      endDate: pub.valid_to.split('T')[0],
+    }))
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
 }
 
 /**
@@ -311,8 +308,8 @@ export async function fetchWeeklyDeals(
 export async function fetchAndPersistWeeklyDeals(
   publicationId: string | number,
   storeInstanceId: string,
-  weekId: string = getCurrentWeekId(),
-  circularDates?: { startDate: string; endDate: string }
+  weekId: string,
+  circularDates: { startDate: string; endDate: string }
 ): Promise<{ deals: StandardDeal[]; persisted: boolean }> {
   const deals = await fetchWeeklyDeals(publicationId);
 
@@ -325,28 +322,12 @@ export async function fetchAndPersistWeeklyDeals(
     findCanonicalProductId(deal.name, deal.details, deal.dept)
   );
 
-  // Write circular metadata - use provided dates or calculate from today
-  let startDate: string;
-  let endDate: string;
-
-  if (circularDates) {
-    startDate = circularDates.startDate;
-    endDate = circularDates.endDate;
-  } else {
-    const today = new Date();
-    startDate = today.toISOString().split('T')[0];
-    // Assume weekly ads run for 7 days
-    endDate = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split('T')[0];
-  }
-
   await writeCircular(
     storeInstanceId,
     weekId,
     publicationId.toString(),
-    startDate,
-    endDate,
+    circularDates.startDate,
+    circularDates.endDate,
     deals.length
   );
 

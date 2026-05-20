@@ -25,18 +25,18 @@ vi.mock('../../src/db/client', () => ({
   getPriceHistory: vi.fn(),
   getDeal: vi.fn(),
   updateDeal: vi.fn(),
+  backfillStoreTimezones: vi.fn(),
 }));
 
 vi.mock('../../src/scraper/kingsoopers', () => ({
   fetchWeeklyDeals: vi.fn(),
   fetchAndPersistWeeklyDeals: vi.fn(),
   fetchCirculars: vi.fn(),
-  extractWeeklyAdMetadata: vi.fn(),
 }));
 
 vi.mock('../../src/scraper/safeway', () => ({
   fetchPublications: vi.fn(),
-  extractWeeklyAdMetadata: vi.fn(),
+  extractWeeklyAds: vi.fn().mockReturnValue([]),
   fetchWeeklyDeals: vi.fn(),
   fetchAndPersistWeeklyDeals: vi.fn(),
 }));

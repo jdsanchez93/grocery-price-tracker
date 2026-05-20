@@ -58,6 +58,8 @@ interface Circular {
   eventName: string;
   eventStartDate: string;
   eventEndDate: string;
+  previewCircular: boolean;
+  timezone: string;
 }
 
 export interface ScraperResponse {
@@ -65,6 +67,7 @@ export interface ScraperResponse {
   bogoData: BogoItem[];
   circularId: string;
   circularDates: { startDate: string; endDate: string };
+  timezone: string;
 }
 
 interface LafObject {
@@ -127,8 +130,9 @@ function buildKrogerHeaders(storeId: string, facilityId: string): Record<string,
 
 async function fetchCirculars(
   storeId: string,
-  facilityId: string
-): Promise<{ circularId: string; circularDates: { startDate: string; endDate: string } }> {
+  facilityId: string,
+  preview: boolean
+): Promise<{ circularId: string; circularDates: { startDate: string; endDate: string }; timezone: string }> {
   const headers = buildKrogerHeaders(storeId, facilityId);
   const response = await fetchWithTimeout(CIRCULARS_URL, { headers });
 
@@ -139,15 +143,18 @@ async function fetchCirculars(
 
   const json = await response.json();
   const circulars: Circular[] = json.data || [];
-  const weeklyAd = circulars.find((circ) => circ.circularType === 'weeklyAd');
+  const weeklyAd = circulars.find(
+    (circ) => circ.circularType === 'weeklyAd' && Boolean(circ.previewCircular) === preview
+  );
 
   if (!weeklyAd) {
-    throw new Error('No weekly ad circular found');
+    throw new Error(preview ? 'No preview weekly ad circular found' : 'No weekly ad circular found');
   }
 
   return {
     circularId: weeklyAd.id,
     circularDates: { startDate: weeklyAd.eventStartDate, endDate: weeklyAd.eventEndDate },
+    timezone: weeklyAd.timezone,
   };
 }
 
@@ -246,9 +253,10 @@ async function fetchDealDetails(
 
 export async function scrapeKingSoopers(
   storeId: string,
-  facilityId: string
+  facilityId: string,
+  preview: boolean = false
 ): Promise<ScraperResponse> {
-  const { circularId, circularDates } = await fetchCirculars(storeId, facilityId);
+  const { circularId, circularDates, timezone } = await fetchCirculars(storeId, facilityId, preview);
   const headers = buildKrogerHeaders(storeId, facilityId);
 
   const url = new URL(DEALS_URL);
@@ -282,5 +290,5 @@ export async function scrapeKingSoopers(
     }
   }
 
-  return { deals, bogoData, circularId, circularDates };
+  return { deals, bogoData, circularId, circularDates, timezone };
 }
