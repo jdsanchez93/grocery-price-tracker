@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, type MockInstance, beforeEach, afterEach } from 'vitest';
-import { standardizeKingSoopersAd, StandardDeal, fetchWeeklyDeals, _resetTokenCache, _getKrogerPriceVariants, _fetchProductPrices, _fetchProductPricesByTerm, _resolveBogoFromWorkerData, _krogerDatesToPlain } from '../../src/scraper/kingsoopers';
+import { standardizeKingSoopersAd, StandardDeal, fetchWeeklyDeals, _resetTokenCache, _getKrogerPriceVariants, _fetchProductPrices, _fetchProductPricesByTerm, _resolveBogoFromWorkerData, toStoreLocalDate } from '../../src/scraper/kingsoopers';
 
 vi.mock('../../src/config', () => ({
   getKrogerCreds: vi.fn().mockResolvedValue({
@@ -309,6 +309,7 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
         return mockResponse({
           circularId: 'circ-1',
           circularDates: { startDate: '2024-01-01', endDate: '2024-01-07' },
+          timezone: 'America/Denver',
           deals: [{
             store: 'King Soopers',
             name: 'Ice Cream',
@@ -368,6 +369,7 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
         return mockResponse({
           circularId: 'circ-1',
           circularDates: { startDate: '2024-01-01', endDate: '2024-01-07' },
+          timezone: 'America/Denver',
           deals: [{
             store: 'King Soopers',
             name: 'Yogurt',
@@ -420,6 +422,7 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
         return mockResponse({
           circularId: 'circ-1',
           circularDates: { startDate: '2024-01-01', endDate: '2024-01-07' },
+          timezone: 'America/Denver',
           deals: [{
             store: 'King Soopers',
             name: 'Chicken Breast',
@@ -484,6 +487,7 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
         return mockResponse({
           circularId: 'circ-1',
           circularDates: { startDate: '2024-01-01', endDate: '2024-01-07' },
+          timezone: 'America/Denver',
           deals: [{
             store: 'King Soopers',
             name: 'Ice Cream',
@@ -522,6 +526,7 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
         return mockResponse({
           circularId: 'circ-1',
           circularDates: { startDate: '2024-01-01', endDate: '2024-01-07' },
+          timezone: 'America/Denver',
           deals: [{
             store: 'King Soopers',
             name: 'Cheese',
@@ -567,6 +572,7 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
         return mockResponse({
           circularId: 'circ-1',
           circularDates: { startDate: '2024-01-01', endDate: '2024-01-07' },
+          timezone: 'America/Denver',
           deals: [{
             store: 'King Soopers',
             name: 'Mystery Item',
@@ -604,6 +610,7 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
         return mockResponse({
           circularId: 'circ-1',
           circularDates: { startDate: '2024-01-01', endDate: '2024-01-07' },
+          timezone: 'America/Denver',
           deals: [{
             store: 'King Soopers',
             name: 'Tostitos',
@@ -677,6 +684,7 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
         return mockResponse({
           circularId: 'circ-1',
           circularDates: { startDate: '2024-01-01', endDate: '2024-01-07' },
+          timezone: 'America/Denver',
           deals: [{
             store: 'King Soopers',
             name: 'Rare Item',
@@ -734,6 +742,7 @@ describe('fetchWeeklyDeals - BOGO price resolution', () => {
         return mockResponse({
           circularId: 'circ-1',
           circularDates: { startDate: '2024-01-01', endDate: '2024-01-07' },
+          timezone: 'America/Denver',
           deals: [{
             store: 'King Soopers',
             name: 'Ice Cream',
@@ -1102,35 +1111,31 @@ describe('_fetchProductPricesByTerm', () => {
   });
 });
 
-describe('_krogerDatesToPlain', () => {
-  it('passes plain dates through unchanged', () => {
-    const result = _krogerDatesToPlain('2026-01-27', '2026-02-03');
-    expect(result).toEqual({ startDate: '2026-01-27', endDate: '2026-02-03' });
+describe('toStoreLocalDate', () => {
+  it('passes plain YYYY-MM-DD through unchanged', () => {
+    expect(toStoreLocalDate('2026-01-27', 'America/Denver')).toBe('2026-01-27');
   });
 
-  it('converts Mountain Standard Time ISO timestamps (UTC-7)', () => {
-    // King Soopers in Colorado: midnight MST = T07:00:00Z
-    const result = _krogerDatesToPlain('2026-02-18T07:00:00Z', '2026-02-25T06:59:59Z');
-    expect(result).toEqual({ startDate: '2026-02-18', endDate: '2026-02-24' });
+  it('converts a Mountain-midnight ISO timestamp to the same local date (MST/UTC-7)', () => {
+    // Winter: midnight MST = T07:00:00Z
+    expect(toStoreLocalDate('2026-02-18T07:00:00Z', 'America/Denver')).toBe('2026-02-18');
   });
 
-  it('converts Mountain Daylight Time ISO timestamps (UTC-6)', () => {
-    // Summer — MDT shifts to T06:00:00Z
-    const result = _krogerDatesToPlain('2026-04-29T06:00:00Z', '2026-05-06T05:59:59Z');
-    expect(result).toEqual({ startDate: '2026-04-29', endDate: '2026-05-05' });
+  it('converts an end-of-day Mountain ISO timestamp to the correct local date (MST)', () => {
+    // 2026-02-25T06:59:59Z = 2026-02-24T23:59:59 MST — date should be Feb 24, not Feb 25
+    expect(toStoreLocalDate('2026-02-25T06:59:59Z', 'America/Denver')).toBe('2026-02-24');
   });
 
-  it('converts Pacific Standard Time ISO timestamps (UTC-8)', () => {
-    // Hypothetical Ralphs in California: midnight PST = T08:00:00Z
-    const result = _krogerDatesToPlain('2026-02-18T08:00:00Z', '2026-02-25T07:59:59Z');
-    expect(result).toEqual({ startDate: '2026-02-18', endDate: '2026-02-24' });
+  it('handles Mountain Daylight Time (UTC-6)', () => {
+    // 2026-05-13T06:00:00Z = 2026-05-13T00:00:00 MDT (Wed) — King Soopers payload from the spec
+    expect(toStoreLocalDate('2026-05-13T06:00:00Z', 'America/Denver')).toBe('2026-05-13');
+    expect(toStoreLocalDate('2026-05-20T05:59:59Z', 'America/Denver')).toBe('2026-05-19');
   });
 
-  it('endDate date part alone would be wrong without timezone correction', () => {
-    // Demonstrates why split("T")[0] is insufficient for endDate:
-    // raw UTC date of endDate is the 25th, but the correct local date is the 24th
-    const { endDate } = _krogerDatesToPlain('2026-02-18T07:00:00Z', '2026-02-25T06:59:59Z');
-    expect(endDate).toBe('2026-02-24');
-    expect(endDate).not.toBe('2026-02-25');
+  it('respects the timezone argument (Pacific instead of Mountain)', () => {
+    // 2026-02-18T08:00:00Z = 2026-02-18T00:00:00 PST (midnight Pacific)
+    expect(toStoreLocalDate('2026-02-18T08:00:00Z', 'America/Los_Angeles')).toBe('2026-02-18');
+    // Same instant under Denver TZ is 2026-02-18T01:00:00 MST — same date
+    expect(toStoreLocalDate('2026-02-18T08:00:00Z', 'America/Denver')).toBe('2026-02-18');
   });
 });

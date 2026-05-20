@@ -19,17 +19,17 @@ app.use('*', async (c, next) => {
 });
 
 app.post('/scrape/kingsoopers', async (c) => {
-  const body = await c.req.json<{ storeId: string; facilityId: string }>();
-  const { storeId, facilityId } = body;
+  const body = await c.req.json<{ storeId: string; facilityId: string; preview?: boolean }>();
+  const { storeId, facilityId, preview } = body;
 
   if (!storeId || !facilityId) {
     return c.json({ error: 'storeId and facilityId are required' }, 400);
   }
 
-  console.log(`[scrape] storeId=${storeId} facilityId=${facilityId}`);
+  console.log(`[scrape] storeId=${storeId} facilityId=${facilityId} preview=${Boolean(preview)}`);
   const t = Date.now();
 
-  const result = await scrapeKingSoopers(storeId, facilityId);
+  const result = await scrapeKingSoopers(storeId, facilityId, Boolean(preview));
 
   console.log(`[scrape] done in ${Date.now() - t}ms — circularId=${result.circularId} ${result.deals.length} deals, ${result.bogoData.length} BOGO items`);
   return c.json(result);

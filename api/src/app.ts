@@ -7,7 +7,7 @@ import {
 } from './scraper/kingsoopers';
 import {
   fetchPublications as fetchSafewayPublications,
-  extractWeeklyAdMetadata as extractSafewayWeeklyAdMetadata,
+  extractWeeklyAds as extractSafewayWeeklyAds,
   fetchWeeklyDeals as fetchSafewayWeeklyDeals,
   fetchAndPersistWeeklyDeals as fetchAndPersistSafewayWeeklyDeals,
 } from './scraper/safeway';
@@ -31,6 +31,7 @@ import {
   getDealsForStoreWeek,
   updateDeal,
   getDeal,
+  backfillStoreTimezones,
 } from './db/client';
 import {
   getCurrentWeekId,
@@ -39,6 +40,7 @@ import {
   StoreAddress,
   STORE_TYPE_METADATA,
   getWeekIdForDate,
+  todayInStoreTz,
 } from './types/database';
 import { computeDealRating } from './analysis/dealRating';
 
@@ -93,6 +95,7 @@ export function createApp() {
       facilityId?: string;
       postalCode?: string;
       address?: { addressLine1?: string; city?: string; state?: string; zipCode?: string };
+      timezone?: string;
     }>();
 
     if (!body.type || !body.name || !body.storeId) {
@@ -122,7 +125,7 @@ export function createApp() {
     }
 
     const address = body.address as StoreAddress | undefined;
-    const instance = await writeStoreInstance(identifiers, body.name, true, address);
+    const instance = await writeStoreInstance(identifiers, body.name, true, address, body.timezone);
 
     return c.json({
       success: true,
@@ -130,10 +133,10 @@ export function createApp() {
     });
   });
 
-  // Update a store instance (name and/or address)
+  // Update a store instance (name, address, and/or timezone)
   app.patch('/admin/stores/:instanceId', requirePermission('stores:write'), async (c) => {
     const instanceId = c.req.param('instanceId');
-    const body = await c.req.json<{ name: string; address?: StoreAddress }>();
+    const body = await c.req.json<{ name: string; address?: StoreAddress; timezone?: string }>();
 
     if (!body.name || !body.name.trim()) {
       return c.json({ error: 'name is required' }, 400);
@@ -142,6 +145,7 @@ export function createApp() {
     const store = await updateStoreInstance(instanceId, {
       name: body.name.trim(),
       address: body.address,
+      timezone: body.timezone,
     });
 
     if (!store) {
@@ -149,6 +153,14 @@ export function createApp() {
     }
 
     return c.json({ success: true, store });
+  });
+
+  // One-shot: backfill `timezone` on every StoreInstanceItem missing it.
+  // Temporary endpoint added with the timezone migration; delete once run in prod.
+  app.post('/admin/stores/backfill-timezone', requirePermission('stores:write'), async (c) => {
+    const defaultTz = c.req.query('timezone') ?? 'America/Denver';
+    const result = await backfillStoreTimezones(defaultTz);
+    return c.json({ success: true, defaultTimezone: defaultTz, ...result });
   });
 
   // Get scrape status for store(s)
@@ -224,9 +236,11 @@ export function createApp() {
 
   // Auto-scrape: fetch circularId + scrape with deduplication
   // Use ?force=true to clear existing data and re-scrape
+  // Use ?preview=true to scrape next week's circular instead of the current one
   app.post('/admin/scrape/auto', requirePermission('scraper:run'), async (c) => {
     const instanceId = c.req.query('instanceId');
     const force = c.req.query('force') === 'true';
+    const preview = c.req.query('preview') === 'true';
 
     if (!instanceId) {
       return c.json({ error: 'instanceId is required' }, 400);
@@ -240,7 +254,7 @@ export function createApp() {
     switch (storeInstance.identifiers.type) {
       case 'kingsoopers': {
         const ksResult = await fetchAndPersistWeeklyDeals(
-          storeInstance.identifiers, storeInstance.instanceId, { force }
+          storeInstance.identifiers, storeInstance.instanceId, { force, preview }
         );
         if (ksResult.alreadyScraped) {
           return c.json({
@@ -270,23 +284,31 @@ export function createApp() {
       }
       case 'safeway': {
         const { publications } = await fetchSafewayPublications(storeInstance.identifiers);
-        const weeklyAdMeta = extractSafewayWeeklyAdMetadata(publications);
+        const ads = extractSafewayWeeklyAds(publications);
 
-        if (!weeklyAdMeta) {
-          return c.json({ error: 'No weekly ad circular found' }, 404);
+        const todayStr = todayInStoreTz(storeInstance.timezone);
+        const target = preview
+          ? ads.find((a) => a.startDate > todayStr)
+          : ads.find((a) => a.startDate <= todayStr && todayStr <= a.endDate);
+
+        if (!target) {
+          return c.json(
+            { error: preview ? 'No preview weekly ad circular found' : 'No active weekly ad circular found' },
+            404
+          );
         }
 
-        const localDate = new Date(weeklyAdMeta.startDate.split('T')[0] + 'T12:00:00');
+        const localDate = new Date(target.startDate.split('T')[0] + 'T12:00:00');
         const weekId = getWeekIdForDate(localDate);
 
         const existingCircular = await getCircular(storeInstance.instanceId, weekId);
 
-        if (!force && existingCircular && existingCircular.circularId === weeklyAdMeta.circularId) {
+        if (!force && existingCircular && existingCircular.circularId === target.circularId) {
           return c.json({
             success: true,
             alreadyScraped: true,
             weekId,
-            circularId: weeklyAdMeta.circularId,
+            circularId: target.circularId,
             storeInstanceId: storeInstance.instanceId,
             existingDealCount: existingCircular.dealCount,
           });
@@ -299,8 +321,8 @@ export function createApp() {
         }
 
         const result = await fetchAndPersistSafewayWeeklyDeals(
-          weeklyAdMeta.circularId, storeInstance.instanceId,
-          weekId, { startDate: weeklyAdMeta.startDate, endDate: weeklyAdMeta.endDate }
+          target.circularId, storeInstance.instanceId,
+          weekId, { startDate: target.startDate, endDate: target.endDate }
         );
 
         return c.json({
@@ -309,13 +331,13 @@ export function createApp() {
           forced: force,
           ...(force && deletedCount > 0 && { deletedCount }),
           weekId,
-          circularId: weeklyAdMeta.circularId,
+          circularId: target.circularId,
           storeInstanceId: storeInstance.instanceId,
           dealCount: result.deals.length,
           persisted: result.persisted,
           dates: {
-            startDate: weeklyAdMeta.startDate,
-            endDate: weeklyAdMeta.endDate,
+            startDate: target.startDate,
+            endDate: target.endDate,
           },
         });
       }

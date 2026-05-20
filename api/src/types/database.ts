@@ -108,6 +108,7 @@ export interface StoreInstanceItem extends BaseItem {
   identifiers: StoreIdentifiers;
   enabled: boolean;
   address?: StoreAddress;
+  timezone: string; // IANA timezone name, e.g., "America/Denver"
 }
 
 export interface CircularItem extends BaseItem {
@@ -206,6 +207,11 @@ export function getWeekIdForDate(date: Date): string {
   const days = Math.floor((adjusted.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
   const weekNumber = Math.ceil((days + startOfYear.getDay() + 1) / 7);
   return `${adjusted.getFullYear()}-W${weekNumber.toString().padStart(2, '0')}`;
+}
+
+// Today's calendar date in a specific IANA timezone, as "YYYY-MM-DD"
+export function todayInStoreTz(timezone: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date());
 }
 
 // Helper to get ISO date string

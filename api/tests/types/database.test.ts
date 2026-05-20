@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { getWeekIdForDate, Keys } from '../../src/types/database'
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { getWeekIdForDate, Keys, todayInStoreTz } from '../../src/types/database'
 
 describe('getCurrentWeekId', () => {
   it('should start a new week on Wednesday', () => {
@@ -81,5 +81,40 @@ describe('Keys.gsi1', () => {
   it('sk should include storeInstanceId for per-store disambiguation', () => {
     const sk = Keys.gsi1.sk('2026-W14', 'safeway:xyz789');
     expect(sk).toContain('safeway:xyz789');
+  });
+});
+
+describe('todayInStoreTz', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns the same calendar date when UTC and store-local agree', () => {
+    // 2026-05-19T18:00:00Z = 2026-05-19T12:00:00 MDT — same date in both zones
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-19T18:00:00Z'));
+    expect(todayInStoreTz('America/Denver')).toBe('2026-05-19');
+  });
+
+  it('returns yesterday in Mountain when UTC has already rolled over', () => {
+    // 2026-05-20T03:00:00Z = 2026-05-19T21:00:00 MDT — still Tuesday in Denver
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-20T03:00:00Z'));
+    expect(todayInStoreTz('America/Denver')).toBe('2026-05-19');
+  });
+
+  it('returns tomorrow once Mountain crosses midnight (Wed 00:00 MDT)', () => {
+    // 2026-05-20T06:00:00Z = 2026-05-20T00:00:00 MDT — Wednesday begins in Denver
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-20T06:00:00Z'));
+    expect(todayInStoreTz('America/Denver')).toBe('2026-05-20');
+  });
+
+  it('respects a different timezone (Pacific lags Mountain by one hour)', () => {
+    // 2026-05-20T06:30:00Z = 2026-05-20T00:30 MDT (already Wed) but 2026-05-19T23:30 PDT (still Tue)
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-20T06:30:00Z'));
+    expect(todayInStoreTz('America/Denver')).toBe('2026-05-20');
+    expect(todayInStoreTz('America/Los_Angeles')).toBe('2026-05-19');
   });
 });

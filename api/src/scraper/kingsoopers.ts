@@ -341,10 +341,12 @@ interface ScraperWorkerResponse {
   bogoData: ScraperWorkerBogoItem[];
   circularId: string;
   circularDates: { startDate: string; endDate: string };
+  timezone: string;
 }
 
 async function callScraperWorker(
-  identifiers: KingSoopersIdentifiers
+  identifiers: KingSoopersIdentifiers,
+  preview: boolean
 ): Promise<ScraperWorkerResponse> {
   const { url, apiKey } = await getScraperWorkerConfig();
   const response = await fetchWithTimeout(`${url}/scrape/kingsoopers`, {
@@ -356,6 +358,7 @@ async function callScraperWorker(
     body: JSON.stringify({
       storeId: identifiers.storeId,
       facilityId: identifiers.facilityId,
+      preview,
     }),
   });
   if (!response.ok) {
@@ -429,17 +432,18 @@ export async function _resolveBogoFromWorkerData(
 }
 
 export async function fetchWeeklyDeals(
-  identifiers: KingSoopersIdentifiers
-): Promise<{ deals: StandardDeal[]; circularId: string; circularDates: { startDate: string; endDate: string } }> {
-  const { deals, bogoData, circularId, circularDates } = await callScraperWorker(identifiers);
+  identifiers: KingSoopersIdentifiers,
+  options: { preview?: boolean } = {}
+): Promise<{ deals: StandardDeal[]; circularId: string; circularDates: { startDate: string; endDate: string }; timezone: string }> {
+  const { deals, bogoData, circularId, circularDates, timezone } = await callScraperWorker(identifiers, Boolean(options.preview));
   await _resolveBogoFromWorkerData(deals, bogoData, identifiers.storeId);
-  return { deals, circularId, circularDates };
+  return { deals, circularId, circularDates, timezone };
 }
 
 export async function fetchAndPersistWeeklyDeals(
   identifiers: KingSoopersIdentifiers,
   storeInstanceId: string,
-  options: { force?: boolean } = {}
+  options: { force?: boolean; preview?: boolean } = {}
 ): Promise<{
   deals: StandardDeal[];
   persisted: boolean;
@@ -451,10 +455,11 @@ export async function fetchAndPersistWeeklyDeals(
   deletedCount?: number;
 }> {
   const t = Date.now();
-  const { deals, circularId, circularDates } = await fetchWeeklyDeals(identifiers);
-  logger.info({ duration_ms: Date.now() - t, dealCount: deals.length, storeInstanceId }, 'fetchWeeklyDeals complete');
+  const { deals, circularId, circularDates, timezone } = await fetchWeeklyDeals(identifiers, { preview: options.preview });
+  logger.info({ duration_ms: Date.now() - t, dealCount: deals.length, storeInstanceId, preview: Boolean(options.preview) }, 'fetchWeeklyDeals complete');
 
-  const { startDate, endDate } = _krogerDatesToPlain(circularDates.startDate, circularDates.endDate);
+  const startDate = toStoreLocalDate(circularDates.startDate, timezone);
+  const endDate = toStoreLocalDate(circularDates.endDate, timezone);
   const weekId = getWeekIdForDate(new Date(startDate + 'T12:00:00'));
 
   // Deduplication check
@@ -498,21 +503,14 @@ export async function fetchAndPersistWeeklyDeals(
   return { deals, persisted: true, alreadyScraped: false, circularId, circularDates, weekId, deletedCount };
 }
 
-/** @internal Exported for testing */
-export function _krogerDatesToPlain(
-  startIso: string,
-  endIso: string
-): { startDate: string; endDate: string } {
-  // Non-Kroger scrapers (safeway) already return plain dates
-  if (!startIso.includes('T')) return { startDate: startIso, endDate: endIso };
-
-  // Midnight local = startDate's UTC hour tells us the store's UTC offset
-  const offsetMinutes = -new Date(startIso).getUTCHours() * 60;
-
-  const toPlain = (iso: string) => {
-    const localMs = new Date(iso).getTime() + offsetMinutes * 60_000;
-    return new Date(localMs).toISOString().split('T')[0];
-  };
-
-  return { startDate: toPlain(startIso), endDate: toPlain(endIso) };
+/**
+ * Format an ISO timestamp (or plain YYYY-MM-DD) as the store-local calendar date.
+ * Uses the explicit timezone returned by Kroger's circulars endpoint rather than
+ * inferring the offset from the timestamp.
+ *
+ * @internal Exported for testing
+ */
+export function toStoreLocalDate(iso: string, timezone: string): string {
+  if (!iso.includes('T')) return iso;
+  return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date(iso));
 }
