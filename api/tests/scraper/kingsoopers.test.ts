@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, type MockInstance, beforeEach, afterEach } from 'vitest';
-import { standardizeKingSoopersAd, StandardDeal, fetchWeeklyDeals, _resetTokenCache, _getKrogerPriceVariants, _fetchProductPrices, _fetchProductPricesByTerm, _resolveBogoFromWorkerData, toStoreLocalDate } from '../../src/scraper/kingsoopers';
+import { standardizeKingSoopersAd, StandardDeal, fetchWeeklyDeals, _resetTokenCache, _getKrogerPriceVariants, _fetchProductPrices, _fetchProductPricesByTerm, _resolveBogoFromWorkerData, toStoreLocalDate, NoCircularError } from '../../src/scraper/kingsoopers';
 
 vi.mock('../../src/config', () => ({
   getKrogerCreds: vi.fn().mockResolvedValue({
@@ -264,10 +264,10 @@ describe('standardizeKingSoopersAd', () => {
 const WORKER_URL = 'http://test-scraper-worker/scrape/kingsoopers';
 const TOKEN_URL = 'https://api.kroger.com/v1/connect/oauth2/token';
 
-function mockResponse(body: unknown, ok = true): Response {
+function mockResponse(body: unknown, ok = true, status?: number): Response {
   return {
     ok,
-    status: ok ? 200 : 500,
+    status: status ?? (ok ? 200 : 500),
     json: () => Promise.resolve(body),
     text: () => Promise.resolve(JSON.stringify(body)),
   } as Response;
@@ -1137,5 +1137,55 @@ describe('toStoreLocalDate', () => {
     expect(toStoreLocalDate('2026-02-18T08:00:00Z', 'America/Los_Angeles')).toBe('2026-02-18');
     // Same instant under Denver TZ is 2026-02-18T01:00:00 MST — same date
     expect(toStoreLocalDate('2026-02-18T08:00:00Z', 'America/Denver')).toBe('2026-02-18');
+  });
+});
+
+describe('callScraperWorker (via fetchWeeklyDeals) error handling', () => {
+  let fetchSpy: MockInstance<typeof global.fetch>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(global, 'fetch');
+    _resetTokenCache();
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  it('throws NoCircularError when worker returns 404 with a JSON error body', async () => {
+    fetchSpy.mockImplementation(async () =>
+      mockResponse({ error: 'No preview weekly ad circular found' }, false, 404)
+    );
+
+    await expect(
+      fetchWeeklyDeals({ type: 'kingsoopers', storeId: 'store-1', facilityId: 'fac-1' }, { preview: true })
+    ).rejects.toBeInstanceOf(NoCircularError);
+
+    await expect(
+      fetchWeeklyDeals({ type: 'kingsoopers', storeId: 'store-1', facilityId: 'fac-1' }, { preview: true })
+    ).rejects.toMatchObject({ message: 'No preview weekly ad circular found' });
+  });
+
+  it('throws NoCircularError with raw body when worker returns 404 with non-JSON', async () => {
+    fetchSpy.mockImplementation(async () => ({
+      ok: false,
+      status: 404,
+      json: () => Promise.resolve({}),
+      text: () => Promise.resolve('plain text not found'),
+    } as Response));
+
+    await expect(
+      fetchWeeklyDeals({ type: 'kingsoopers', storeId: 'store-1', facilityId: 'fac-1' }, { preview: true })
+    ).rejects.toMatchObject({ name: 'NoCircularError', message: 'plain text not found' });
+  });
+
+  it('throws a generic Error (not NoCircularError) when worker returns 500', async () => {
+    fetchSpy.mockImplementation(async () =>
+      mockResponse({ error: 'kaboom' }, false, 500)
+    );
+
+    const promise = fetchWeeklyDeals({ type: 'kingsoopers', storeId: 'store-1', facilityId: 'fac-1' });
+    await expect(promise).rejects.toThrow(/Scraper worker error: 500/);
+    await expect(promise).rejects.not.toBeInstanceOf(NoCircularError);
   });
 });

@@ -8,6 +8,16 @@ import type { StandardDeal } from './types';
 export type { PriceVariant } from '../types/database';
 export type { StandardDeal } from './types';
 
+// Thrown when the scraper-worker reports that no matching circular exists for the
+// requested store/preview combination. Callers can treat this as an expected 404
+// rather than an unexpected scraper failure.
+export class NoCircularError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NoCircularError';
+  }
+}
+
 interface KingSoopersAd {
   id?: string;
   mainlineCopy?: string;
@@ -363,6 +373,15 @@ async function callScraperWorker(
   });
   if (!response.ok) {
     const errorBody = await response.text();
+    if (response.status === 404) {
+      let msg = errorBody;
+      try {
+        msg = (JSON.parse(errorBody) as { error?: string }).error ?? errorBody;
+      } catch {
+        // body wasn't JSON — fall back to the raw text
+      }
+      throw new NoCircularError(msg);
+    }
     throw new Error(`Scraper worker error: ${response.status} - ${errorBody}`);
   }
   return response.json() as Promise<ScraperWorkerResponse>;
