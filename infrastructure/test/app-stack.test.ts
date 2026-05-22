@@ -100,23 +100,22 @@ describe('AppStack', () => {
     });
   });
 
-  test('CloudFront 403 and 404 error responses redirect to /index.html', () => {
+  test('CloudFront default behavior has SPA rewrite function on viewer-request', () => {
     template.hasResourceProperties('AWS::CloudFront::Distribution', {
       DistributionConfig: Match.objectLike({
-        CustomErrorResponses: Match.arrayWith([
-          Match.objectLike({
-            ErrorCode: 403,
-            ResponseCode: 200,
-            ResponsePagePath: '/index.html',
-          }),
-          Match.objectLike({
-            ErrorCode: 404,
-            ResponseCode: 200,
-            ResponsePagePath: '/index.html',
-          }),
-        ]),
+        DefaultCacheBehavior: Match.objectLike({
+          FunctionAssociations: Match.arrayWith([
+            Match.objectLike({ EventType: 'viewer-request' }),
+          ]),
+        }),
       }),
     });
+  });
+
+  test('CloudFront distribution has no CustomErrorResponses (API errors pass through)', () => {
+    const distributions = template.findResources('AWS::CloudFront::Distribution');
+    const distConfig = Object.values(distributions)[0].Properties.DistributionConfig;
+    expect(distConfig.CustomErrorResponses).toBeUndefined();
   });
 
   test('S3 bucket blocks all public access', () => {

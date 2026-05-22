@@ -114,6 +114,25 @@ export class AppStack extends cdk.Stack {
       protocolPolicy: cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
     });
 
+    // --- CloudFront Function: SPA routing rewrite ---
+    // Rewrites non-file paths to /index.html at viewer-request so Angular client-side
+    // routing works without distribution-level errorResponses (which would also swallow
+    // API 404s from the /api/* behavior).
+    const spaRewriteFn = new cloudfront.Function(this, 'SpaRewriteFunction', {
+      code: cloudfront.FunctionCode.fromInline(`
+function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+  var lastSegment = uri.split('/').pop();
+  if (lastSegment && lastSegment.includes('.')) {
+    return request;
+  }
+  request.uri = '/index.html';
+  return request;
+}`.trim()),
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+    });
+
     // --- CloudFront Distribution ---
     const distribution = new cloudfront.Distribution(this, 'Distribution', {
       defaultBehavior: {
@@ -121,6 +140,10 @@ export class AppStack extends cdk.Stack {
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
         responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
+        functionAssociations: [{
+          function: spaRewriteFn,
+          eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+        }],
       },
       additionalBehaviors: {
         '/api/*': {
@@ -135,18 +158,6 @@ export class AppStack extends cdk.Stack {
       certificate: certificate,
       httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,
       priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
-      errorResponses: [
-        {
-          httpStatus: 403,
-          responseHttpStatus: 200,
-          responsePagePath: '/index.html',
-        },
-        {
-          httpStatus: 404,
-          responseHttpStatus: 200,
-          responsePagePath: '/index.html',
-        },
-      ],
     });
 
     // --- Frontend deployment (only if dist exists) ---
