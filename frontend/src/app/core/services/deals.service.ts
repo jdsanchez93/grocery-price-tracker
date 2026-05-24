@@ -3,10 +3,6 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Deal, DealsResponse } from '../models/deal.model';
 import { environment } from '../../../environments/environment';
 
-interface WeekResponse {
-  weekId: string;
-}
-
 @Injectable({
   providedIn: 'root'
 })
@@ -14,19 +10,10 @@ export class DealsService {
   private http = inject(HttpClient);
 
   private _deals = signal<Deal[]>([]);
-  private _currentWeekId = signal<string | null>(null);
-  private _selectedWeekId = signal<string | null>(null);
   loading = signal(false);
   error = signal<string | null>(null);
 
   deals = this._deals.asReadonly();
-  currentWeekId = this._currentWeekId.asReadonly();
-  selectedWeekId = this._selectedWeekId.asReadonly();
-
-  isCurrentWeek = computed(() =>
-    this._currentWeekId() !== null &&
-    this._currentWeekId() === this._selectedWeekId()
-  );
 
   departments = computed(() => {
     const depts = new Set(this._deals().map(d => d.dept));
@@ -34,15 +21,13 @@ export class DealsService {
   });
 
   constructor() {
-    this.http.get<WeekResponse>(`${environment.apiUrl}/me/week`).subscribe({
-      next: ({ weekId }) => {
-        this._currentWeekId.set(weekId);
-        this.loadDeals(weekId);
-      },
-      error: () => this.loadDeals()
-    });
+    this.loadDeals();
   }
 
+  /**
+   * Load deals. With no weekId, the API returns each store's currently-active
+   * circular ("current" mode). A weekId requests a specific historical week.
+   */
   loadDeals(weekId?: string): void {
     this.loading.set(true);
     this.error.set(null);
@@ -51,12 +36,6 @@ export class DealsService {
     this.http.get<DealsResponse>(`${environment.apiUrl}/me/deals${params}`).subscribe({
       next: (response) => {
         this._deals.set(response.deals);
-        if (!this._currentWeekId()) {
-          this._currentWeekId.set(response.weekId);
-        }
-        if (!this._selectedWeekId()) {
-          this._selectedWeekId.set(response.weekId);
-        }
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
@@ -68,17 +47,5 @@ export class DealsService {
         this.loading.set(false);
       }
     });
-  }
-
-  selectWeek(weekId: string): void {
-    this._selectedWeekId.set(weekId);
-    this.loadDeals(weekId);
-  }
-
-  selectCurrentWeek(): void {
-    const current = this._currentWeekId();
-    if (current) {
-      this.selectWeek(current);
-    }
   }
 }

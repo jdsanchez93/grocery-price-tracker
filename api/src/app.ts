@@ -15,6 +15,8 @@ import {
 import { authMiddleware, requirePermission, getAuthUser, hasPermission } from './middleware/auth';
 import {
   getDealsForUserStores,
+  getActiveDealsForUserStores,
+  getActiveWeekIds,
   getUserStores,
   addUserStore,
   removeUserStore,
@@ -34,13 +36,14 @@ import {
   getDeal,
 } from './db/client';
 import {
-  getCurrentWeekId,
   StoreType,
   StoreIdentifiers,
   StoreAddress,
   STORE_TYPE_METADATA,
   getWeekIdForDate,
   todayInStoreTz,
+  activeWeekId,
+  DealItem,
 } from './types/database';
 import { computeDealRating } from './analysis/dealRating';
 
@@ -162,15 +165,19 @@ export function createApp() {
       return c.json({ error: 'instanceIds is required' }, 400);
     }
 
-    const currentWeekId = getCurrentWeekId();
     const instanceIdArray: string[] = instanceIds.split(',');
 
     const entries = await Promise.all(
       instanceIdArray.map(async (id) => {
-        const circular = await getCircular(id, currentWeekId);
+        const store = await getStoreInstance(id);
+        if (!store) {
+          return [id, { scraped: false, reason: 'store_not_found' }] as const;
+        }
+        const weekId = activeWeekId(store.timezone);
+        const circular = await getCircular(id, weekId);
         return [id, circular
-          ? { scraped: true, dealCount: circular.dealCount, circularId: circular.circularId }
-          : { scraped: false }
+          ? { scraped: true, weekId, dealCount: circular.dealCount, circularId: circular.circularId }
+          : { scraped: false, weekId }
         ] as const;
       })
     );
@@ -425,11 +432,6 @@ export function createApp() {
     return c.json({ success: true });
   });
 
-  // Get current week ID
-  app.get('/me/week', requirePermission('deals:read'), (c) => {
-    return c.json({ weekId: getCurrentWeekId() });
-  });
-
   // Get user's selected stores (now returns store instances)
   app.get('/me/stores', requirePermission('user-stores:read'), async (c) => {
     const user = getAuthUser(c);
@@ -502,53 +504,63 @@ export function createApp() {
     return c.json({ success: true });
   });
 
-  // Get deals from user's selected stores
+  // Enrich deals with price-rating data (only for users with history:read).
+  async function enrichWithRatings(deals: DealItem[]) {
+    const userStoreIds = [...new Set(deals.map(d => d.storeInstanceId))];
+    const uniqueProductIds = [...new Set(
+      deals
+        .filter(d => d.canonicalProductId && d.priceNumber != null)
+        .map(d => d.canonicalProductId!)
+    )];
+
+    const historyMap = new Map<string, DealItem[]>();
+    await Promise.all(
+      uniqueProductIds.map(async (id) => {
+        const h = await getPriceHistory(id, userStoreIds, 100);
+        historyMap.set(id, h);
+      })
+    );
+
+    return deals.map(deal => {
+      if (!deal.canonicalProductId || deal.priceNumber == null) return deal;
+      const h = historyMap.get(deal.canonicalProductId) ?? [];
+      const rating = computeDealRating(deal.priceNumber, deal.weekId, h);
+      return rating ? { ...deal, rating } : deal;
+    });
+  }
+
+  // Get deals from user's selected stores.
+  // - No ?week: "current" mode — each store's active circular (resolved in its own timezone).
+  // - ?week=X: "historical" mode — deals across all stores under weekId X (gated by history:read
+  //   unless X is currently active for one of the user's stores).
   app.get('/me/deals', requirePermission('deals:read'), async (c) => {
     const user = getAuthUser(c);
-    const currentWeekId = getCurrentWeekId();
-    const weekId = c.req.query('week') ?? currentWeekId;
+    const requestedWeek = c.req.query('week');
+    const canReadHistory = hasPermission(c, 'history:read');
 
-    if (weekId !== currentWeekId && !hasPermission(c, 'history:read')) {
-      return c.json({ error: 'history:read permission required for historical week access' }, 403);
-    }
+    if (requestedWeek) {
+      const activeWeekIds = await getActiveWeekIds(user.userId);
+      if (!activeWeekIds.has(requestedWeek) && !canReadHistory) {
+        return c.json({ error: 'history:read permission required for historical week access' }, 403);
+      }
 
-    const deals = await getDealsForUserStores(user.userId, weekId);
-
-    if (hasPermission(c, 'history:read')) {
-      const userStoreIds = [...new Set(deals.map(d => d.storeInstanceId))];
-
-      const uniqueProductIds = [...new Set(
-        deals
-          .filter(d => d.canonicalProductId && d.priceNumber != null)
-          .map(d => d.canonicalProductId!)
-      )];
-
-      const historyMap = new Map<string, typeof deals>();
-      await Promise.all(
-        uniqueProductIds.map(async (id) => {
-          const h = await getPriceHistory(id, userStoreIds, 100);
-          historyMap.set(id, h);
-        })
-      );
-
-      const enrichedDeals = deals.map(deal => {
-        if (!deal.canonicalProductId || deal.priceNumber == null) return deal;
-        const h = historyMap.get(deal.canonicalProductId) ?? [];
-        const rating = computeDealRating(deal.priceNumber, deal.weekId, h);
-        return rating ? { ...deal, rating } : deal;
-      });
-
+      const deals = await getDealsForUserStores(user.userId, requestedWeek);
+      const finalDeals = canReadHistory ? await enrichWithRatings(deals) : deals;
       return c.json({
-        weekId,
-        deals: enrichedDeals,
-        count: enrichedDeals.length,
+        mode: 'historical',
+        weekId: requestedWeek,
+        deals: finalDeals,
+        count: finalDeals.length,
       });
     }
 
+    const { circulars, deals } = await getActiveDealsForUserStores(user.userId);
+    const finalDeals = canReadHistory ? await enrichWithRatings(deals) : deals;
     return c.json({
-      weekId,
-      deals,
-      count: deals.length,
+      mode: 'current',
+      circulars,
+      deals: finalDeals,
+      count: finalDeals.length,
     });
   });
 
