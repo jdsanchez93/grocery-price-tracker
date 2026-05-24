@@ -195,10 +195,6 @@ export function getStoreTypeFromInstanceId(instanceId: string): StoreType {
   return type as StoreType;
 }
 
-export function getCurrentWeekId(): string {
-  return getWeekIdForDate(new Date());
-}
-
 // Helper to get current grocery week ID (weeks start on Wednesday when new ads release)
 export function getWeekIdForDate(date: Date): string {
   // Shift date back 3 days so Wednesday becomes the start of a new week
@@ -212,6 +208,14 @@ export function getWeekIdForDate(date: Date): string {
 // Today's calendar date in a specific IANA timezone, as "YYYY-MM-DD"
 export function todayInStoreTz(timezone: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date());
+}
+
+// The grocery weekId currently active for a store, resolved in that store's timezone.
+// Relies on the scraper storing weekId = getWeekIdForDate(startDate) and circulars
+// running Wed→Tue (true for all current chains): every day in a circular's range maps
+// to the same weekId as its startDate, so this matches the stored partition key.
+export function activeWeekId(timezone: string): string {
+  return getWeekIdForDate(new Date(todayInStoreTz(timezone) + 'T12:00:00'));
 }
 
 // Helper to get ISO date string

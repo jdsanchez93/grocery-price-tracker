@@ -34,8 +34,18 @@ export interface Deal {
   rating?: DealRating;
 }
 
+/**
+ * One store's currently-active circular, or a null marker explaining why none
+ * was found. Returned by GET /me/deals in "current" mode.
+ */
+export type ActiveCircular =
+  | { storeInstanceId: string; weekId: string; startDate: string; endDate: string; dealCount: number }
+  | { storeInstanceId: string; circular: null; reason: 'not_yet_scraped' | 'store_not_found' };
+
 export interface DealsResponse {
-  weekId: string;
+  mode: 'current' | 'historical';
+  weekId?: string;          // present in historical mode
+  circulars?: ActiveCircular[]; // present in current mode
   deals: Deal[];
   count: number;
 }

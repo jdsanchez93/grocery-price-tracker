@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { getWeekIdForDate, Keys, todayInStoreTz } from '../../src/types/database'
+import { getWeekIdForDate, Keys, todayInStoreTz, activeWeekId } from '../../src/types/database'
 
-describe('getCurrentWeekId', () => {
+describe('getWeekIdForDate', () => {
   it('should start a new week on Wednesday', () => {
     const tuesday = new Date('2025-02-11T12:00:00');
     const wednesday = new Date('2025-02-12T12:00:00');
@@ -116,5 +116,47 @@ describe('todayInStoreTz', () => {
     vi.setSystemTime(new Date('2026-05-20T06:30:00Z'));
     expect(todayInStoreTz('America/Denver')).toBe('2026-05-20');
     expect(todayInStoreTz('America/Los_Angeles')).toBe('2026-05-19');
+  });
+});
+
+describe('activeWeekId', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // The original bug: at 7pm MT Tuesday, UTC is already Wednesday, so a UTC-based
+  // "current week" flips early. activeWeekId must still report the current week.
+  it('reports the current week at 7pm MT Tuesday (UTC has already rolled to Wed)', () => {
+    // 2026-05-20T01:00:00Z = 2026-05-19T19:00 MDT (Tuesday in Denver)
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-20T01:00:00Z'));
+
+    // Circular running 2026-05-13 (Wed) → 2026-05-19 (Tue) is stored under this weekId.
+    // (A naive UTC-clock "current week" would already have rolled to 2026-W21 here —
+    // that early flip in the Lambda's UTC runtime is the original bug.)
+    const currentWeek = getWeekIdForDate(new Date('2026-05-13T12:00:00'));
+    expect(activeWeekId('America/Denver')).toBe(currentWeek);
+  });
+
+  it('rolls to the next week exactly at Wed 00:00 MT', () => {
+    // 2026-05-20T06:01:00Z = 2026-05-20T00:01 MDT (Wednesday begins in Denver)
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-20T06:01:00Z'));
+
+    const nextWeek = getWeekIdForDate(new Date('2026-05-20T12:00:00'));
+    expect(activeWeekId('America/Denver')).toBe(nextWeek);
+  });
+
+  it('matches the weekId the scraper stored for any day inside the circular range', () => {
+    // Stored weekId is derived from the circular startDate (Wed 2026-05-13).
+    const stored = getWeekIdForDate(new Date('2026-05-13T12:00:00'));
+
+    for (const iso of ['2026-05-13T15:00:00Z', '2026-05-16T15:00:00Z', '2026-05-20T05:00:00Z']) {
+      // All instants resolve to a Denver date within 2026-05-13..2026-05-19.
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(iso));
+      expect(activeWeekId('America/Denver')).toBe(stored);
+      vi.useRealTimers();
+    }
   });
 });
