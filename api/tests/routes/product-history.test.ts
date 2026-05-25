@@ -162,7 +162,10 @@ describe('GET /api/me/products/:id/history', () => {
 
   // --- rating enrichment ---
 
-  it('attaches a rating to each history item when enough history exists', async () => {
+  it('attaches a rating to every entry that has at least 2 strictly-prior weeks', async () => {
+    // History dataset: W10, W11, W12, W13. Under "strictly-prior" semantics,
+    // ratings are computed for W12 (prior = W10, W11) and W13 (W10, W11, W12).
+    // W10 and W11 lack enough prior weeks → rating is null/undefined.
     vi.mocked(dbClient.getUserStores).mockResolvedValue([
       { userId: 'user:test', storeInstanceId: STORE_A, addedAt: '2026-01-01T00:00:00.000Z' } as any,
     ]);
@@ -170,14 +173,22 @@ describe('GET /api/me/products/:id/history', () => {
       mockDeal({ dealId: 'a', SK: 'DEAL#a', weekId: '2026-W10', priceNumber: 3.99 }),
       mockDeal({ dealId: 'b', SK: 'DEAL#b', weekId: '2026-W11', priceNumber: 3.99 }),
       mockDeal({ dealId: 'c', SK: 'DEAL#c', weekId: '2026-W12', priceNumber: 4.99 }),
+      mockDeal({ dealId: 'd', SK: 'DEAL#d', weekId: '2026-W13', priceNumber: 4.99 }),
     ] as any);
 
     const res = await getHistory('chicken-breast');
     const body = await res.json();
-    expect(body.history.every((d: any) => d.rating)).toBe(true);
+    const byWeek = Object.fromEntries(body.history.map((d: any) => [d.weekId, d.rating]));
+
+    expect(byWeek['2026-W10']).toBeUndefined();
+    expect(byWeek['2026-W11']).toBeUndefined();
+    expect(byWeek['2026-W12']).toBeDefined();
+    expect(byWeek['2026-W13']).toBeDefined();
   });
 
-  it('rates each deal against the other weeks (excluding its own week)', async () => {
+  it('rates each deal against strictly-prior weeks only (not against the future)', async () => {
+    // Under the corrected semantic, future-dated entries (including pre-scraped
+    // next-week deals) are never counted in any earlier entry's "history."
     vi.mocked(dbClient.getUserStores).mockResolvedValue([
       { userId: 'user:test', storeInstanceId: STORE_A, addedAt: '2026-01-01T00:00:00.000Z' } as any,
     ]);
@@ -191,10 +202,12 @@ describe('GET /api/me/products/:id/history', () => {
     const body = await res.json();
     const byWeek = Object.fromEntries(body.history.map((d: any) => [d.weekId, d.rating]));
 
-    // W10 ($3.99) vs [W11 $3.99, W12 $4.99]: at min → 'best'
-    expect(byWeek['2026-W10'].label).toBe('best');
-    // W12 ($4.99) vs [W10 $3.99, W11 $3.99]: well above avg → 'high'
+    // W12 ($4.99) vs strictly-prior [W10 $3.99, W11 $3.99]: well above avg → 'high'
     expect(byWeek['2026-W12'].label).toBe('high');
+    // W10 has no prior weeks in the dataset → no rating.
+    expect(byWeek['2026-W10']).toBeUndefined();
+    // W11 has only 1 prior week (need ≥2) → no rating.
+    expect(byWeek['2026-W11']).toBeUndefined();
   });
 
   it('omits rating when there is insufficient history (single week)', async () => {

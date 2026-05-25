@@ -98,6 +98,34 @@ describe('computeDealRating', () => {
     expect(rating?.historicalMin).toBe(3.80);
   });
 
+  // Pre-scraped next-week deals end up in GSI1 sorted *above* the current week.
+  // They must not be counted as "history" — they're future data, not past.
+  it('excludes future-week records (pre-scraped next-week circulars)', () => {
+    const historyWithFutureWeek = [
+      makeDeal('2026-W16', 1.00), // future relative to W15 — must be excluded
+      makeDeal('2026-W17', 1.50), // also future
+      ...BASE_HISTORY,
+    ];
+    const rating = computeDealRating(4.00, CURRENT_WEEK, historyWithFutureWeek);
+    // sampleSize is still 4 (only the past weeks W11–W14 count)
+    expect(rating?.sampleSize).toBe(4);
+    // historicalMin must reflect past data (3.80), not the future $1.00
+    expect(rating?.historicalMin).toBe(3.80);
+  });
+
+  // Lexical compare must hold across year boundaries: "2025-W52" < "2026-W01".
+  it('treats prior-year weeks as past when crossing year boundary', () => {
+    const acrossYearBoundary = [
+      makeDeal('2025-W52', 3.50),
+      makeDeal('2025-W51', 3.60),
+      makeDeal('2025-W50', 3.70),
+      makeDeal('2025-W49', 3.40),
+    ];
+    const rating = computeDealRating(4.00, '2026-W01', acrossYearBoundary);
+    expect(rating?.sampleSize).toBe(4);
+    expect(rating?.historicalMin).toBe(3.40);
+  });
+
   it('excludes records with null priceNumber', () => {
     const historyWithNulls = [
       makeDeal('2026-W10', null),
