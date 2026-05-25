@@ -13,9 +13,13 @@ export function computeDealRating(
   currentWeekId: string,
   history: DealItem[]
 ): DealRating | null {
-  // Filter out current week and records with no price
+  // Keep only strictly-past records with a price. WeekIds are zero-padded
+  // "YYYY-Www" so lexical compare works both within a year and across year
+  // boundaries (e.g. "2025-W52" < "2026-W01"). Using `<` (rather than `!==`)
+  // excludes future-dated entries, which can appear when next week's circular
+  // has been pre-scraped — those must not be counted as "history".
   const filtered = history.filter(
-    (h) => h.weekId !== currentWeekId && h.priceNumber != null
+    (h) => h.weekId < currentWeekId && h.priceNumber != null
   ) as (DealItem & { priceNumber: number })[];
 
   // Collapse to one price per week (minimum) so sampleSize means "distinct weeks"
