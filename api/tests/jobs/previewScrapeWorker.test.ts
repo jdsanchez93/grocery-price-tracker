@@ -14,8 +14,6 @@ vi.mock('../../src/scraper/kingsoopers', async () => {
 });
 
 vi.mock('../../src/scraper/safeway', () => ({
-  fetchPublications: vi.fn(),
-  extractWeeklyAds: vi.fn(),
   fetchAndPersistWeeklyDeals: vi.fn(),
 }));
 
@@ -25,11 +23,7 @@ import {
   fetchAndPersistWeeklyDeals as ksFetchAndPersist,
   NoCircularError,
 } from '../../src/scraper/kingsoopers';
-import {
-  fetchPublications,
-  extractWeeklyAds,
-  fetchAndPersistWeeklyDeals as sfwFetchAndPersist,
-} from '../../src/scraper/safeway';
+import { fetchAndPersistWeeklyDeals as sfwFetchAndPersist } from '../../src/scraper/safeway';
 
 const KS_STORE = {
   PK: 'STOREINSTANCE#kingsoopers:abc',
@@ -62,8 +56,6 @@ const SFW_STORE = {
 beforeEach(() => {
   vi.mocked(getStoreInstance).mockReset();
   vi.mocked(ksFetchAndPersist).mockReset();
-  vi.mocked(fetchPublications).mockReset();
-  vi.mocked(extractWeeklyAds).mockReset();
   vi.mocked(sfwFetchAndPersist).mockReset();
 });
 
@@ -111,43 +103,41 @@ describe('runWorker', () => {
     await expect(runWorker('kingsoopers:abc')).rejects.toThrow('upstream 500');
   });
 
-  it('picks the Safeway future-dated ad and persists it', async () => {
+  it('calls Safeway fetchAndPersistWeeklyDeals with preview: true and store timezone', async () => {
     vi.mocked(getStoreInstance).mockResolvedValue(SFW_STORE);
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-05-19T18:00:00Z')); // Tue noon-ish MDT, today = 2026-05-19 in Denver
-    vi.mocked(fetchPublications).mockResolvedValue({ weeklyAdPublicationId: 1, publications: [] as any });
-    vi.mocked(extractWeeklyAds).mockReturnValue([
-      { circularId: 'current', startDate: '2026-05-13', endDate: '2026-05-19' },
-      { circularId: 'preview', startDate: '2026-05-20', endDate: '2026-05-26' },
-    ]);
-    vi.mocked(sfwFetchAndPersist).mockResolvedValue({ deals: [{}, {}] as any, persisted: true });
+    vi.mocked(sfwFetchAndPersist).mockResolvedValue({
+      deals: [{}, {}] as any,
+      persisted: true,
+      alreadyScraped: false,
+      circularId: 'preview',
+      circularDates: { startDate: '2026-05-20', endDate: '2026-05-26' },
+      weekId: '2026-W21',
+    });
 
     const out = await runWorker('safeway:xyz');
 
     expect(sfwFetchAndPersist).toHaveBeenCalledWith(
-      'preview',
+      SFW_STORE.identifiers,
       SFW_STORE.instanceId,
-      expect.any(String), // weekId derived from startDate
-      { startDate: '2026-05-20', endDate: '2026-05-26' },
+      SFW_STORE.timezone,
+      { preview: true },
     );
-    expect(out).toMatchObject({ result: 'scraped', dealCount: 2 });
-
-    vi.useRealTimers();
+    expect(out).toMatchObject({ result: 'scraped', weekId: '2026-W21', alreadyScraped: false, dealCount: 2 });
   });
 
-  it('returns no_preview_available when Safeway has no future ad', async () => {
+  it('swallows NoCircularError from Safeway as no_preview_available', async () => {
     vi.mocked(getStoreInstance).mockResolvedValue(SFW_STORE);
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-05-19T18:00:00Z'));
-    vi.mocked(fetchPublications).mockResolvedValue({ weeklyAdPublicationId: 1, publications: [] as any });
-    vi.mocked(extractWeeklyAds).mockReturnValue([
-      { circularId: 'current', startDate: '2026-05-13', endDate: '2026-05-19' },
-    ]);
+    vi.mocked(sfwFetchAndPersist).mockRejectedValue(new NoCircularError('No preview weekly ad circular found'));
 
     const out = await runWorker('safeway:xyz');
     expect(out).toEqual({ result: 'no_preview_available' });
-    expect(sfwFetchAndPersist).not.toHaveBeenCalled();
-    vi.useRealTimers();
+  });
+
+  it('rethrows non-NoCircularError exceptions from Safeway', async () => {
+    vi.mocked(getStoreInstance).mockResolvedValue(SFW_STORE);
+    vi.mocked(sfwFetchAndPersist).mockRejectedValue(new Error('flipp 503'));
+
+    await expect(runWorker('safeway:xyz')).rejects.toThrow('flipp 503');
   });
 
   it('returns not_implemented for sprouts stores', async () => {

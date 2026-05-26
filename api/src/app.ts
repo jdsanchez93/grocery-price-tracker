@@ -29,7 +29,6 @@ import {
   getStoreInstance,
   writeStoreInstance,
   getCircular,
-  deleteCircularAndDeals,
   getAllStores,
   updateStoreInstance,
   getAllCirculars,
@@ -42,7 +41,6 @@ import {
   StoreIdentifiers,
   StoreAddress,
   STORE_TYPE_METADATA,
-  getWeekIdForDate,
   todayInStoreTz,
   activeWeekId,
   DealItem,
@@ -361,61 +359,43 @@ export function createApp() {
         });
       }
       case 'safeway': {
-        const { publications } = await fetchSafewayPublications(storeInstance.identifiers);
-        const ads = extractSafewayWeeklyAds(publications);
-
-        const todayStr = todayInStoreTz(storeInstance.timezone);
-        const target = preview
-          ? ads.find((a) => a.startDate > todayStr)
-          : ads.find((a) => a.startDate <= todayStr && todayStr <= a.endDate);
-
-        if (!target) {
-          return c.json(
-            { error: preview ? 'No preview weekly ad circular found' : 'No active weekly ad circular found' },
-            404
+        let sfwResult;
+        try {
+          sfwResult = await fetchAndPersistSafewayWeeklyDeals(
+            storeInstance.identifiers,
+            storeInstance.instanceId,
+            storeInstance.timezone,
+            { force, preview },
           );
+        } catch (err) {
+          if (err instanceof NoCircularError) {
+            return c.json({ error: err.message }, 404);
+          }
+          throw err;
         }
-
-        const localDate = new Date(target.startDate.split('T')[0] + 'T12:00:00');
-        const weekId = getWeekIdForDate(localDate);
-
-        const existingCircular = await getCircular(storeInstance.instanceId, weekId);
-
-        if (!force && existingCircular && existingCircular.circularId === target.circularId) {
+        if (sfwResult.alreadyScraped) {
           return c.json({
             success: true,
             alreadyScraped: true,
-            weekId,
-            circularId: target.circularId,
+            weekId: sfwResult.weekId,
+            circularId: sfwResult.circularId,
             storeInstanceId: storeInstance.instanceId,
-            existingDealCount: existingCircular.dealCount,
+            existingDealCount: sfwResult.existingDealCount,
           });
         }
-
-        let deletedCount = 0;
-        if (force && existingCircular) {
-          const deleteResult = await deleteCircularAndDeals(storeInstance.instanceId, weekId);
-          deletedCount = deleteResult.deletedCount;
-        }
-
-        const result = await fetchAndPersistSafewayWeeklyDeals(
-          target.circularId, storeInstance.instanceId,
-          weekId, { startDate: target.startDate, endDate: target.endDate }
-        );
-
         return c.json({
           success: true,
           alreadyScraped: false,
           forced: force,
-          ...(force && deletedCount > 0 && { deletedCount }),
-          weekId,
-          circularId: target.circularId,
+          ...(force && (sfwResult.deletedCount ?? 0) > 0 && { deletedCount: sfwResult.deletedCount }),
+          weekId: sfwResult.weekId,
+          circularId: sfwResult.circularId,
           storeInstanceId: storeInstance.instanceId,
-          dealCount: result.deals.length,
-          persisted: result.persisted,
+          dealCount: sfwResult.deals.length,
+          persisted: sfwResult.persisted,
           dates: {
-            startDate: target.startDate,
-            endDate: target.endDate,
+            startDate: sfwResult.circularDates.startDate,
+            endDate: sfwResult.circularDates.endDate,
           },
         });
       }

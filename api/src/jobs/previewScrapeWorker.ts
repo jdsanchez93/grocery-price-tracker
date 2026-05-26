@@ -1,16 +1,9 @@
 import type { Handler } from 'aws-lambda';
 import { logger } from '../logger';
 import { getStoreInstance } from '../db/client';
-import {
-  fetchAndPersistWeeklyDeals as fetchAndPersistKingSoopersWeeklyDeals,
-  NoCircularError,
-} from '../scraper/kingsoopers';
-import {
-  fetchPublications as fetchSafewayPublications,
-  extractWeeklyAds as extractSafewayWeeklyAds,
-  fetchAndPersistWeeklyDeals as fetchAndPersistSafewayWeeklyDeals,
-} from '../scraper/safeway';
-import { getWeekIdForDate, todayInStoreTz } from '../types/database';
+import { NoCircularError } from '../scraper/errors';
+import { fetchAndPersistWeeklyDeals as fetchAndPersistKingSoopersWeeklyDeals } from '../scraper/kingsoopers';
+import { fetchAndPersistWeeklyDeals as fetchAndPersistSafewayWeeklyDeals } from '../scraper/safeway';
 
 export interface WorkerEvent {
   instanceId: string;
@@ -59,27 +52,22 @@ export async function runWorker(instanceId: string): Promise<WorkerOutcome> {
         };
       }
       case 'safeway': {
-        // Mirrors the safeway branch of /admin/scrape/auto?preview=true.
-        const { publications } = await fetchSafewayPublications(store.identifiers);
-        const ads = extractSafewayWeeklyAds(publications);
-        const today = todayInStoreTz(store.timezone);
-        const target = ads.find((a) => a.startDate > today);
-        if (!target) {
-          logger.info({ instanceId }, 'safeway: no preview ad available yet');
-          return { result: 'no_preview_available' };
-        }
-        const weekId = getWeekIdForDate(new Date(target.startDate + 'T12:00:00'));
         const res = await fetchAndPersistSafewayWeeklyDeals(
-          target.circularId,
+          store.identifiers,
           store.instanceId,
-          weekId,
-          { startDate: target.startDate, endDate: target.endDate },
+          store.timezone,
+          { preview: true },
         );
         logger.info(
-          { instanceId, weekId, dealCount: res.deals.length, persisted: res.persisted },
+          { instanceId, weekId: res.weekId, dealCount: res.deals.length, alreadyScraped: res.alreadyScraped },
           'preview scrape done',
         );
-        return { result: 'scraped', weekId, dealCount: res.deals.length };
+        return {
+          result: 'scraped',
+          weekId: res.weekId,
+          alreadyScraped: res.alreadyScraped,
+          dealCount: res.deals.length,
+        };
       }
       case 'sprouts':
         logger.warn({ instanceId }, 'sprouts not implemented; skipping');

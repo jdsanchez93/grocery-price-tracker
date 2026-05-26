@@ -8,15 +8,11 @@ import type { StandardDeal } from './types';
 export type { PriceVariant } from '../types/database';
 export type { StandardDeal } from './types';
 
-// Thrown when the scraper-worker reports that no matching circular exists for the
-// requested store/preview combination. Callers can treat this as an expected 404
-// rather than an unexpected scraper failure.
-export class NoCircularError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'NoCircularError';
-  }
-}
+// Re-exported from a shared module so safeway.ts can throw the same class
+// (lets route handlers do one `instanceof NoCircularError` check regardless
+// of which chain produced the error).
+export { NoCircularError } from './errors';
+import { NoCircularError } from './errors';
 
 interface KingSoopersAd {
   id?: string;
