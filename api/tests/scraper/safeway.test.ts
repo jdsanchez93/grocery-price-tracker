@@ -1,5 +1,19 @@
-import { describe, it, expect } from 'vitest';
-import { extractWeeklyAds } from '../../src/scraper/safeway';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
+
+// db/client must be mocked before importing safeway so the safeway module's
+// top-level binding picks up the mocked versions.
+vi.mock('../../src/db/client', () => ({
+  writeDeals: vi.fn().mockResolvedValue(undefined),
+  writeCircular: vi.fn().mockResolvedValue(undefined),
+  getCircular: vi.fn(),
+  deleteCircularAndDeals: vi.fn(),
+}));
+vi.mock('../../src/scraper/products', () => ({
+  findCanonicalProductId: vi.fn().mockReturnValue(undefined),
+}));
+
+import { extractWeeklyAds, fetchAndPersistWeeklyDeals, NoCircularError } from '../../src/scraper/safeway';
+import { getCircular, deleteCircularAndDeals } from '../../src/db/client';
 
 type Pub = Parameters<typeof extractWeeklyAds>[0][number];
 
@@ -52,5 +66,131 @@ describe('extractWeeklyAds', () => {
     ]);
     expect(ads[0].startDate).toBe('2026-05-13');
     expect(ads[0].endDate).toBe('2026-05-19');
+  });
+});
+
+// High-level wrapper that mirrors Kroger's fetchAndPersistWeeklyDeals.
+// Tests focus on the orchestration logic (target selection, alreadyScraped
+// short-circuit, force-delete). The intra-module calls (fetchPublications,
+// fetchWeeklyDeals) can't be spied on under ESM, so we mock the global fetch
+// to return canned Flipp responses — same pattern as kingsoopers.test.ts.
+describe('fetchAndPersistWeeklyDeals (high-level)', () => {
+  let fetchSpy: MockInstance<typeof global.fetch>;
+  const identifiers = { type: 'safeway' as const, storeId: '3836', postalCode: '80230' };
+  const TZ = 'America/Denver';
+  // 2026-05-19T18:00:00Z = noon-ish MDT, today-in-Denver = 2026-05-19.
+  const NOW = new Date('2026-05-19T18:00:00Z');
+
+  function pubEntry(overrides: Partial<Pub>): Pub {
+    return {
+      id: 0,
+      external_display_name: 'Weekly Ad',
+      valid_from: '2026-05-13T00:00:00-04:00',
+      valid_to: '2026-05-19T23:59:59-04:00',
+      storefront_id: 1,
+      ...overrides,
+    } as Pub;
+  }
+
+  function mockResponse(body: unknown): Response {
+    return {
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(body),
+      text: () => Promise.resolve(JSON.stringify(body)),
+    } as Response;
+  }
+
+  // Wire fetch to return `publications` for the publications endpoint and an
+  // empty product array for the /products endpoint (deals are irrelevant — the
+  // tests assert on orchestration, not deal content).
+  function stubFetch(publications: Pub[]) {
+    fetchSpy.mockImplementation(async (input) => {
+      const url = input.toString();
+      if (url.includes('/publications/safeway')) return mockResponse(publications);
+      if (url.includes('/products')) return mockResponse([]);
+      throw new Error(`Unexpected fetch URL in test: ${url}`);
+    });
+  }
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(global, 'fetch');
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    vi.mocked(getCircular).mockReset().mockResolvedValue(null);
+    vi.mocked(deleteCircularAndDeals).mockReset().mockResolvedValue({ deletedCount: 0 });
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it('picks the preview (future-dated) ad when preview: true', async () => {
+    stubFetch([
+      pubEntry({ id: 1, valid_from: '2026-05-13T00:00:00-04:00', valid_to: '2026-05-19T23:59:59-04:00' }),
+      pubEntry({ id: 2, valid_from: '2026-05-20T00:00:00-04:00', valid_to: '2026-05-26T23:59:59-04:00' }),
+    ]);
+
+    const result = await fetchAndPersistWeeklyDeals(identifiers, 'safeway:abc', TZ, { preview: true });
+
+    expect(result.circularId).toBe('2');
+    expect(result.alreadyScraped).toBe(false);
+    expect(result.circularDates).toEqual({ startDate: '2026-05-20', endDate: '2026-05-26' });
+    expect(result.weekId).toMatch(/^\d{4}-W\d{2}$/);
+  });
+
+  it('picks the active (currently-running) ad when preview: false', async () => {
+    stubFetch([
+      pubEntry({ id: 1, valid_from: '2026-05-13T00:00:00-04:00', valid_to: '2026-05-19T23:59:59-04:00' }),
+      pubEntry({ id: 2, valid_from: '2026-05-20T00:00:00-04:00', valid_to: '2026-05-26T23:59:59-04:00' }),
+    ]);
+
+    const result = await fetchAndPersistWeeklyDeals(identifiers, 'safeway:abc', TZ, { preview: false });
+    expect(result.circularId).toBe('1');
+  });
+
+  it('returns alreadyScraped (no /products call) when the same circularId is already in DDB', async () => {
+    stubFetch([pubEntry({ id: 1, valid_from: '2026-05-13T00:00:00-04:00', valid_to: '2026-05-19T23:59:59-04:00' })]);
+    vi.mocked(getCircular).mockResolvedValue({ circularId: '1', dealCount: 42 } as any);
+
+    const result = await fetchAndPersistWeeklyDeals(identifiers, 'safeway:abc', TZ, { preview: false });
+
+    expect(result.alreadyScraped).toBe(true);
+    expect(result.existingDealCount).toBe(42);
+    // No deals fetch (we short-circuited) — only the publications call happened.
+    const productsCalls = fetchSpy.mock.calls.filter(([u]) => u.toString().includes('/products'));
+    expect(productsCalls).toHaveLength(0);
+  });
+
+  it('force: true re-scrapes and deletes the existing circular first', async () => {
+    stubFetch([pubEntry({ id: 1, valid_from: '2026-05-13T00:00:00-04:00', valid_to: '2026-05-19T23:59:59-04:00' })]);
+    vi.mocked(getCircular).mockResolvedValue({ circularId: '1', dealCount: 42 } as any);
+    vi.mocked(deleteCircularAndDeals).mockResolvedValue({ deletedCount: 43 });
+
+    const result = await fetchAndPersistWeeklyDeals(identifiers, 'safeway:abc', TZ, {
+      preview: false,
+      force: true,
+    });
+
+    expect(result.alreadyScraped).toBe(false);
+    expect(result.deletedCount).toBe(43);
+    expect(deleteCircularAndDeals).toHaveBeenCalledWith('safeway:abc', result.weekId);
+  });
+
+  it('throws NoCircularError when no preview ad is published yet', async () => {
+    stubFetch([pubEntry({ id: 1, valid_from: '2026-05-13T00:00:00-04:00', valid_to: '2026-05-19T23:59:59-04:00' })]);
+
+    await expect(
+      fetchAndPersistWeeklyDeals(identifiers, 'safeway:abc', TZ, { preview: true })
+    ).rejects.toBeInstanceOf(NoCircularError);
+  });
+
+  it('throws NoCircularError when no active ad covers today', async () => {
+    stubFetch([pubEntry({ id: 1, valid_from: '2026-06-01T00:00:00-04:00', valid_to: '2026-06-07T23:59:59-04:00' })]);
+
+    await expect(
+      fetchAndPersistWeeklyDeals(identifiers, 'safeway:abc', TZ, { preview: false })
+    ).rejects.toMatchObject({ name: 'NoCircularError', message: 'No active weekly ad circular found' });
   });
 });

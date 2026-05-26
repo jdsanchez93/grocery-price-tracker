@@ -1,7 +1,10 @@
-import { writeDeals, writeCircular } from '../db/client';
-import { SafewayIdentifiers } from '../types/database';
+import { writeDeals, writeCircular, getCircular, deleteCircularAndDeals } from '../db/client';
+import { SafewayIdentifiers, getWeekIdForDate, todayInStoreTz } from '../types/database';
 import { findCanonicalProductId } from './products';
 import type { StandardDeal } from './types';
+import { NoCircularError } from './errors';
+
+export { NoCircularError };
 
 export interface WeeklyAdMetadata {
   circularId: string;
@@ -303,9 +306,11 @@ export async function fetchWeeklyDeals(
 }
 
 /**
- * Fetch weekly deals and persist to DynamoDB
+ * Low-level: fetch deals for a specific publicationId and persist to DynamoDB.
+ * Doesn't pick the publication, doesn't check alreadyScraped — callers (or the
+ * high-level wrapper below) handle that.
  */
-export async function fetchAndPersistWeeklyDeals(
+export async function persistWeeklyDealsByCircular(
   publicationId: string | number,
   storeInstanceId: string,
   weekId: string,
@@ -332,4 +337,86 @@ export async function fetchAndPersistWeeklyDeals(
   );
 
   return { deals, persisted: true };
+}
+
+/**
+ * High-level entry point — mirrors Kroger's `fetchAndPersistWeeklyDeals`:
+ * fetch publications, pick the current or preview ad based on today's
+ * store-local date, short-circuit on alreadyScraped, optionally force-delete,
+ * then persist. Throws `NoCircularError` if no matching ad exists upstream.
+ *
+ * Both `/admin/scrape/auto` and the scheduled worker call this so the flow
+ * (and the `alreadyScraped` shortcut) only lives in one place.
+ */
+export async function fetchAndPersistWeeklyDeals(
+  identifiers: SafewayIdentifiers,
+  storeInstanceId: string,
+  timezone: string,
+  options: { force?: boolean; preview?: boolean } = {}
+): Promise<{
+  deals: StandardDeal[];
+  persisted: boolean;
+  alreadyScraped: boolean;
+  circularId: string;
+  circularDates: { startDate: string; endDate: string };
+  weekId: string;
+  existingDealCount?: number;
+  deletedCount?: number;
+}> {
+  const preview = Boolean(options.preview);
+  const force = Boolean(options.force);
+
+  const { publications } = await fetchPublications(identifiers);
+  const ads = extractWeeklyAds(publications);
+
+  const today = todayInStoreTz(timezone);
+  const target = preview
+    ? ads.find((a) => a.startDate > today)
+    : ads.find((a) => a.startDate <= today && today <= a.endDate);
+
+  if (!target) {
+    throw new NoCircularError(
+      preview ? 'No preview weekly ad circular found' : 'No active weekly ad circular found'
+    );
+  }
+
+  const circularId = target.circularId;
+  const circularDates = { startDate: target.startDate, endDate: target.endDate };
+  const weekId = getWeekIdForDate(new Date(target.startDate + 'T12:00:00'));
+
+  const existingCircular = await getCircular(storeInstanceId, weekId);
+  if (!force && existingCircular && existingCircular.circularId === circularId) {
+    return {
+      deals: [],
+      persisted: false,
+      alreadyScraped: true,
+      circularId,
+      circularDates,
+      weekId,
+      existingDealCount: existingCircular.dealCount,
+    };
+  }
+
+  let deletedCount: number | undefined;
+  if (force && existingCircular) {
+    const deleteResult = await deleteCircularAndDeals(storeInstanceId, weekId);
+    deletedCount = deleteResult.deletedCount;
+  }
+
+  const result = await persistWeeklyDealsByCircular(
+    circularId,
+    storeInstanceId,
+    weekId,
+    circularDates
+  );
+
+  return {
+    deals: result.deals,
+    persisted: result.persisted,
+    alreadyScraped: false,
+    circularId,
+    circularDates,
+    weekId,
+    deletedCount,
+  };
 }
