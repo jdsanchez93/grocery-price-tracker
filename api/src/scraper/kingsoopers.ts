@@ -354,6 +354,42 @@ interface ScraperWorkerResponse {
   timezone: string;
 }
 
+export interface CircularSummary {
+  circularId: string;
+  previewCircular: boolean;
+  startDate: string;
+  endDate: string;
+  timezone: string;
+}
+
+/**
+ * Fetch the full list of weeklyAd circulars (current + preview) for a Kroger
+ * store. Metadata only — no deal fetching, no DDB writes. Used by the
+ * preview-availability admin endpoint to peek at upstream cheaply.
+ */
+export async function fetchCircularsList(
+  identifiers: KingSoopersIdentifiers
+): Promise<CircularSummary[]> {
+  const { url, apiKey } = await getScraperWorkerConfig();
+  const response = await fetchWithTimeout(`${url}/scrape/kingsoopers/circulars`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Api-Key': apiKey,
+    },
+    body: JSON.stringify({
+      storeId: identifiers.storeId,
+      facilityId: identifiers.facilityId,
+    }),
+  });
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Scraper worker error: ${response.status} - ${errorBody}`);
+  }
+  const { circulars } = (await response.json()) as { circulars: CircularSummary[] };
+  return circulars;
+}
+
 async function callScraperWorker(
   identifiers: KingSoopersIdentifiers,
   preview: boolean

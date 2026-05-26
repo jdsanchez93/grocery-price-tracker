@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { AvailableStore, StoreAddress, StoreType } from '../models/store.model';
-import { AutoScrapeResponse, ScrapeStatusResponse } from '../models/admin.model';
+import { AutoScrapeResponse, PreviewAvailabilityResponse, ScrapeStatusResponse } from '../models/admin.model';
 import { Deal, DealsResponse } from '../models/deal.model';
 
 export interface CreateStoreRequest {
@@ -59,6 +59,17 @@ export class AdminService {
 
   getScrapeStatus(instanceIds: string[]): Observable<ScrapeStatusResponse> {
     return this.http.get<ScrapeStatusResponse>(`${environment.apiUrl}/admin/scrape/status`, { params: { 'instanceIds': instanceIds.join(',') } });
+  }
+
+  /**
+   * Read-only peek: asks upstream whether each store's "next week" circular
+   * has been published yet. Writes nothing to DDB.
+   */
+  checkPreviewAvailability(instanceIds: string[]): Observable<PreviewAvailabilityResponse> {
+    return this.http.get<PreviewAvailabilityResponse>(
+      `${environment.apiUrl}/admin/scrape/preview-availability`,
+      { params: { instanceIds: instanceIds.join(',') } }
+    );
   }
 
   createStore(data: CreateStoreRequest): Observable<CreateStoreResponse> {

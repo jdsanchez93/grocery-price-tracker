@@ -128,11 +128,25 @@ function buildKrogerHeaders(storeId: string, facilityId: string): Record<string,
   };
 }
 
-async function fetchCirculars(
+export interface CircularSummary {
+  circularId: string;
+  previewCircular: boolean;
+  startDate: string;
+  endDate: string;
+  timezone: string;
+}
+
+/**
+ * Fetch all weeklyAd circulars (both current and preview, in whatever order
+ * Kroger returns them). Returns metadata only — no deal fetching.
+ *
+ * Used by the scrape path (which picks one) and by the availability-check
+ * endpoint (which inspects the list without fetching deals).
+ */
+export async function fetchKingSoopersCirculars(
   storeId: string,
-  facilityId: string,
-  preview: boolean
-): Promise<{ circularId: string; circularDates: { startDate: string; endDate: string }; timezone: string }> {
+  facilityId: string
+): Promise<CircularSummary[]> {
   const headers = buildKrogerHeaders(storeId, facilityId);
   const response = await fetchWithTimeout(CIRCULARS_URL, { headers });
 
@@ -143,17 +157,33 @@ async function fetchCirculars(
 
   const json = await response.json();
   const circulars: Circular[] = json.data || [];
-  const weeklyAd = circulars.find(
-    (circ) => circ.circularType === 'weeklyAd' && Boolean(circ.previewCircular) === preview
-  );
+
+  return circulars
+    .filter((c) => c.circularType === 'weeklyAd')
+    .map((c) => ({
+      circularId: c.id,
+      previewCircular: Boolean(c.previewCircular),
+      startDate: c.eventStartDate,
+      endDate: c.eventEndDate,
+      timezone: c.timezone,
+    }));
+}
+
+async function fetchCirculars(
+  storeId: string,
+  facilityId: string,
+  preview: boolean
+): Promise<{ circularId: string; circularDates: { startDate: string; endDate: string }; timezone: string }> {
+  const circulars = await fetchKingSoopersCirculars(storeId, facilityId);
+  const weeklyAd = circulars.find((c) => c.previewCircular === preview);
 
   if (!weeklyAd) {
     throw new Error(preview ? 'No preview weekly ad circular found' : 'No weekly ad circular found');
   }
 
   return {
-    circularId: weeklyAd.id,
-    circularDates: { startDate: weeklyAd.eventStartDate, endDate: weeklyAd.eventEndDate },
+    circularId: weeklyAd.circularId,
+    circularDates: { startDate: weeklyAd.startDate, endDate: weeklyAd.endDate },
     timezone: weeklyAd.timezone,
   };
 }

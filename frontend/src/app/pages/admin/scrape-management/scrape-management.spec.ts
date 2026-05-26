@@ -4,7 +4,7 @@ import { MessageService } from 'primeng/api';
 import { ScrapeManagement } from './scrape-management';
 import { AdminService } from '@/app/core/services/admin.service';
 import { AvailableStore } from '@/app/core/models/store.model';
-import { AutoScrapeResponse, ScrapeStatusResponse } from '@/app/core/models/admin.model';
+import { AutoScrapeResponse, PreviewAvailabilityResponse, ScrapeStatusResponse } from '@/app/core/models/admin.model';
 
 const mockStores: AvailableStore[] = [
   { instanceId: 'kingsoopers:123', name: 'King Soopers #123', storeType: 'kingsoopers', identifiers: {}, enabled: true },
@@ -39,6 +39,7 @@ describe('ScrapeManagement', () => {
       getAllStores: vi.fn().mockReturnValue(of(mockStores)),
       getScrapeStatus: vi.fn().mockReturnValue(of(mockStatus)),
       autoScrapeStore: vi.fn().mockReturnValue(of(mockScrapeResponse)),
+      checkPreviewAvailability: vi.fn(),
     };
 
     await TestBed.configureTestingModule({
@@ -193,6 +194,102 @@ describe('ScrapeManagement', () => {
       component.scrapeStore('safeway:456');
 
       expect(messageServiceAdd).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('checkPreviewAvailability', () => {
+    const mockAvailability: PreviewAvailabilityResponse = {
+      availability: {
+        'kingsoopers:123': { available: true, circularId: 'next-c', startDate: '2026-05-20', endDate: '2026-05-26' },
+        'safeway:456': { available: false },
+      },
+    };
+
+    it('calls adminService with every store instance id', () => {
+      adminServiceMock['checkPreviewAvailability'].mockReturnValue(of(mockAvailability));
+
+      component.checkPreviewAvailability();
+
+      expect(adminServiceMock['checkPreviewAvailability']).toHaveBeenCalledWith([
+        'kingsoopers:123',
+        'safeway:456',
+      ]);
+    });
+
+    it('toggles checkingPreview while the request is in flight', () => {
+      let capturedInFlight = false;
+      adminServiceMock['checkPreviewAvailability'].mockImplementation(() => {
+        capturedInFlight = component.checkingPreview();
+        return of(mockAvailability);
+      });
+
+      component.checkPreviewAvailability();
+
+      expect(capturedInFlight).toBe(true);
+      expect(component.checkingPreview()).toBe(false);
+    });
+
+    it('populates previewResults with one row per store, including the display name', () => {
+      adminServiceMock['checkPreviewAvailability'].mockReturnValue(of(mockAvailability));
+
+      component.checkPreviewAvailability();
+      const rows = component.previewResults();
+
+      expect(rows).toHaveLength(2);
+      expect(rows![0]).toMatchObject({
+        instanceId: 'kingsoopers:123',
+        name: 'King Soopers #123',
+        status: 'Preview ready (2026-05-20 – 2026-05-26)',
+      });
+      expect(rows![1]).toMatchObject({
+        instanceId: 'safeway:456',
+        name: 'Safeway #456',
+        status: 'Not yet published',
+      });
+    });
+
+    it('renders the result panel and dismisses it on close', () => {
+      adminServiceMock['checkPreviewAvailability'].mockReturnValue(of(mockAvailability));
+
+      component.checkPreviewAvailability();
+      fixture.detectChanges();
+
+      const el: HTMLElement = fixture.nativeElement;
+      expect(el.querySelector('[data-testid="preview-panel"]')).toBeTruthy();
+
+      component.dismissPreviewResults();
+      fixture.detectChanges();
+
+      expect(component.previewResults()).toBeNull();
+      expect(el.querySelector('[data-testid="preview-panel"]')).toBeNull();
+    });
+
+    it('formats upstream errors with the message', () => {
+      adminServiceMock['checkPreviewAvailability'].mockReturnValue(of({
+        availability: {
+          'kingsoopers:123': { available: false, reason: 'upstream_error', message: 'Kroger 503' },
+          'safeway:456': { available: false, reason: 'not_implemented' },
+        },
+      } satisfies PreviewAvailabilityResponse));
+
+      component.checkPreviewAvailability();
+      const byId = Object.fromEntries(component.previewResults()!.map(r => [r.instanceId, r.status]));
+      expect(byId['kingsoopers:123']).toBe('Error: Kroger 503');
+      expect(byId['safeway:456']).toBe('Not supported for this store type');
+    });
+
+    it('shows an error toast and clears loading state on request failure', () => {
+      adminServiceMock['checkPreviewAvailability'].mockReturnValue(
+        throwError(() => new Error('boom'))
+      );
+
+      component.checkPreviewAvailability();
+
+      expect(component.checkingPreview()).toBe(false);
+      expect(component.previewResults()).toBeNull();
+      expect(messageServiceAdd).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'error' })
+      );
     });
   });
 });
