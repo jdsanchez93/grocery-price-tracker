@@ -59,15 +59,146 @@ export class AppStack extends cdk.Stack {
 
     props.dealsTable.grantReadWriteData(apiFunction);
 
+    const ssmKrogerScraperParamArns = [
+      `arn:aws:ssm:${this.region}:${this.account}:parameter/grocery/prod/kroger/client-id`,
+      `arn:aws:ssm:${this.region}:${this.account}:parameter/grocery/prod/kroger/client-secret`,
+      `arn:aws:ssm:${this.region}:${this.account}:parameter/grocery/prod/scraper-worker/url`,
+      `arn:aws:ssm:${this.region}:${this.account}:parameter/grocery/prod/scraper-worker/api-key`,
+    ];
+
     apiFunction.addToRolePolicy(new cdk.aws_iam.PolicyStatement({
       actions: ['ssm:GetParameter'],
+      resources: ssmKrogerScraperParamArns,
+    }));
+
+    // --- Scheduled preview-scrape: worker + planner Lambdas + EventBridge ---
+
+    // Worker Lambda: scrapes one store's preview circular. Invoked by per-store
+    // one-time EventBridge schedules created by the planner.
+    const previewWorkerFunction = new NodejsFunction(this, 'PreviewWorkerFunction', {
+      entry: path.join(__dirname, '../../api/src/jobs/previewScrapeWorker.ts'),
+      handler: 'handler',
+      runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
+      memorySize: 512,
+      timeout: cdk.Duration.seconds(60),
+      bundling: {
+        format: cdk.aws_lambda_nodejs.OutputFormat.ESM,
+        minify: true,
+        sourceMap: true,
+        target: 'node22',
+        forceDockerBundling: false,
+        externalModules: ['@aws-sdk/*'],
+        banner: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
+      },
+      environment: {
+        STAGE: 'prod',
+        TABLE_NAME: props.dealsTable.tableName,
+        KROGER_SCOPE: props.krogerScope || '',
+        LOG_LEVEL: 'info',
+      },
+    });
+    props.dealsTable.grantReadWriteData(previewWorkerFunction);
+    previewWorkerFunction.addToRolePolicy(new cdk.aws_iam.PolicyStatement({
+      actions: ['ssm:GetParameter'],
+      resources: ssmKrogerScraperParamArns,
+    }));
+
+    // Role assumed by EventBridge Scheduler when invoking the worker Lambda.
+    const schedulerInvokeRole = new cdk.aws_iam.Role(this, 'SchedulerInvokeRole', {
+      assumedBy: new cdk.aws_iam.ServicePrincipal('scheduler.amazonaws.com'),
+    });
+    previewWorkerFunction.grantInvoke(schedulerInvokeRole);
+
+    // Schedule group: isolates the per-store one-time schedules created by the
+    // planner. Easy to find/clean in the AWS console.
+    const previewScheduleGroup = new cdk.aws_scheduler.CfnScheduleGroup(this, 'PreviewScheduleGroup', {
+      name: 'preview-scrape',
+    });
+
+    // Planner Lambda: weekly trigger fans out per-store one-time schedules.
+    // @aws-sdk/client-scheduler is NOT in the Lambda Node 22 runtime defaults
+    // (which ships dynamodb + lib-dynamodb + ssm only), so we externalize the
+    // runtime-provided ones but bundle scheduler.
+    const previewPlannerFunction = new NodejsFunction(this, 'PreviewPlannerFunction', {
+      entry: path.join(__dirname, '../../api/src/jobs/previewScrapePlanner.ts'),
+      handler: 'handler',
+      runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
+      memorySize: 256,
+      timeout: cdk.Duration.seconds(30),
+      bundling: {
+        format: cdk.aws_lambda_nodejs.OutputFormat.ESM,
+        minify: true,
+        sourceMap: true,
+        target: 'node22',
+        forceDockerBundling: false,
+        externalModules: [
+          '@aws-sdk/client-dynamodb',
+          '@aws-sdk/lib-dynamodb',
+          '@aws-sdk/client-ssm',
+        ],
+        banner: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
+      },
+      environment: {
+        STAGE: 'prod',
+        TABLE_NAME: props.dealsTable.tableName,
+        LOG_LEVEL: 'info',
+        WORKER_FUNCTION_ARN: previewWorkerFunction.functionArn,
+        SCHEDULER_INVOKE_ROLE_ARN: schedulerInvokeRole.roleArn,
+        SCHEDULE_GROUP_NAME: previewScheduleGroup.name!,
+        SCHEDULE_WINDOW_START_HOUR: '9',
+        SCHEDULE_WINDOW_END_HOUR: '23',
+      },
+    });
+    props.dealsTable.grantReadData(previewPlannerFunction);
+    previewPlannerFunction.addToRolePolicy(new cdk.aws_iam.PolicyStatement({
+      actions: ['scheduler:CreateSchedule'],
       resources: [
-        `arn:aws:ssm:${this.region}:${this.account}:parameter/grocery/prod/kroger/client-id`,
-        `arn:aws:ssm:${this.region}:${this.account}:parameter/grocery/prod/kroger/client-secret`,
-        `arn:aws:ssm:${this.region}:${this.account}:parameter/grocery/prod/scraper-worker/url`,
-        `arn:aws:ssm:${this.region}:${this.account}:parameter/grocery/prod/scraper-worker/api-key`,
+        `arn:aws:scheduler:${this.region}:${this.account}:schedule/${previewScheduleGroup.name}/*`,
       ],
     }));
+    previewPlannerFunction.addToRolePolicy(new cdk.aws_iam.PolicyStatement({
+      actions: ['iam:PassRole'],
+      resources: [schedulerInvokeRole.roleArn],
+    }));
+
+    // The api Lambda also calls runPlanner via /admin/scheduler/plan-now;
+    // grant it the same perms so prod manual triggers work.
+    apiFunction.addToRolePolicy(new cdk.aws_iam.PolicyStatement({
+      actions: ['scheduler:CreateSchedule'],
+      resources: [
+        `arn:aws:scheduler:${this.region}:${this.account}:schedule/${previewScheduleGroup.name}/*`,
+      ],
+    }));
+    apiFunction.addToRolePolicy(new cdk.aws_iam.PolicyStatement({
+      actions: ['iam:PassRole'],
+      resources: [schedulerInvokeRole.roleArn],
+    }));
+    // The api Lambda needs the same env vars to call runPlanner (the planner
+    // module reads these at module load; addEnvironment lets us set after-init).
+    apiFunction.addEnvironment('WORKER_FUNCTION_ARN', previewWorkerFunction.functionArn);
+    apiFunction.addEnvironment('SCHEDULER_INVOKE_ROLE_ARN', schedulerInvokeRole.roleArn);
+    apiFunction.addEnvironment('SCHEDULE_GROUP_NAME', previewScheduleGroup.name!);
+    apiFunction.addEnvironment('SCHEDULE_WINDOW_START_HOUR', '9');
+    apiFunction.addEnvironment('SCHEDULE_WINDOW_END_HOUR', '23');
+
+    // Role for EventBridge Scheduler to invoke the planner Lambda (the weekly
+    // trigger). Separate from schedulerInvokeRole for principle-of-least-privilege.
+    const plannerInvokeRole = new cdk.aws_iam.Role(this, 'PlannerInvokeRole', {
+      assumedBy: new cdk.aws_iam.ServicePrincipal('scheduler.amazonaws.com'),
+    });
+    previewPlannerFunction.grantInvoke(plannerInvokeRole);
+
+    // Recurring schedule: fires the planner once a week, Tuesday 9am Mountain.
+    new cdk.aws_scheduler.CfnSchedule(this, 'WeeklyPlannerSchedule', {
+      name: 'preview-scrape-planner',
+      scheduleExpression: 'cron(0 9 ? * TUE *)',
+      scheduleExpressionTimezone: 'America/Denver',
+      flexibleTimeWindow: { mode: 'OFF' },
+      target: {
+        arn: previewPlannerFunction.functionArn,
+        roleArn: plannerInvokeRole.roleArn,
+      },
+    });
 
     // --- HTTP API Gateway ---
     const httpApi = new apigwv2.HttpApi(this, 'HttpApi', {

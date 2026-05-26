@@ -206,8 +206,8 @@ export function getWeekIdForDate(date: Date): string {
 }
 
 // Today's calendar date in a specific IANA timezone, as "YYYY-MM-DD"
-export function todayInStoreTz(timezone: string): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date());
+export function todayInStoreTz(timezone: string, now: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(now);
 }
 
 // The grocery weekId currently active for a store, resolved in that store's timezone.

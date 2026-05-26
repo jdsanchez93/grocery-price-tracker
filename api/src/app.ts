@@ -48,6 +48,7 @@ import {
   DealItem,
 } from './types/database';
 import { computeDealRating } from './analysis/dealRating';
+import { runPlanner } from './jobs/previewScrapePlanner';
 
 
 type LambdaBindings = {
@@ -424,6 +425,21 @@ export function createApp() {
         const _exhaustive: never = storeInstance.identifiers;
         return c.json({ error: 'Unknown store type' }, 400);
       }
+    }
+  });
+
+  // Run the preview-scrape planner on demand. Defaults to dryRun=true so
+  // hitting this route in dev (or accidentally in prod) is always safe. Pass
+  // `?dryRun=false` to actually create EventBridge schedules (prod recovery
+  // path; the recurring schedule normally invokes the planner Lambda directly).
+  app.post('/admin/scheduler/plan-now', requirePermission('scraper:run'), async (c) => {
+    const dryRun = c.req.query('dryRun') !== 'false';
+    try {
+      const report = await runPlanner({ dryRun });
+      return c.json(report);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return c.json({ error: message }, 500);
     }
   });
 
