@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, type MockInstance, beforeEach, afterEach } from 'vitest';
-import { standardizeKingSoopersAd, StandardDeal, fetchWeeklyDeals, _resetTokenCache, _getKrogerPriceVariants, _fetchProductPrices, _fetchProductPricesByTerm, _resolveBogoFromWorkerData, toStoreLocalDate, NoCircularError } from '../../src/scraper/kingsoopers';
+import { standardizeKingSoopersAd, StandardDeal, fetchWeeklyDeals, _resetTokenCache, _getKrogerPriceVariants, _fetchProductPrices, _fetchProductPricesByTerm, _resolveBogoFromWorkerData, toStoreLocalDate, NoCircularError, fetchCircularsList } from '../../src/scraper/kingsoopers';
 
 vi.mock('../../src/config', () => ({
   getKrogerCreds: vi.fn().mockResolvedValue({
@@ -1187,5 +1187,40 @@ describe('callScraperWorker (via fetchWeeklyDeals) error handling', () => {
     const promise = fetchWeeklyDeals({ type: 'kingsoopers', storeId: 'store-1', facilityId: 'fac-1' });
     await expect(promise).rejects.toThrow(/Scraper worker error: 500/);
     await expect(promise).rejects.not.toBeInstanceOf(NoCircularError);
+  });
+});
+
+describe('fetchCircularsList', () => {
+  let fetchSpy: MockInstance<typeof global.fetch>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(global, 'fetch');
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  it('returns the parsed circulars list from the worker', async () => {
+    const summaries = [
+      { circularId: 'c-current', previewCircular: false, startDate: '2026-05-13T06:00:00Z', endDate: '2026-05-20T05:59:59Z', timezone: 'America/Denver' },
+      { circularId: 'c-preview', previewCircular: true,  startDate: '2026-05-20T06:00:00Z', endDate: '2026-05-27T05:59:59Z', timezone: 'America/Denver' },
+    ];
+
+    fetchSpy.mockImplementation(async (input) => {
+      const url = input.toString();
+      expect(url).toMatch(/\/scrape\/kingsoopers\/circulars$/);
+      return mockResponse({ circulars: summaries });
+    });
+
+    const result = await fetchCircularsList({ type: 'kingsoopers', storeId: 'store-1', facilityId: 'fac-1' });
+    expect(result).toEqual(summaries);
+  });
+
+  it('throws on worker non-2xx', async () => {
+    fetchSpy.mockImplementation(async () => mockResponse({ error: 'oops' }, false, 500));
+    await expect(
+      fetchCircularsList({ type: 'kingsoopers', storeId: 'store-1', facilityId: 'fac-1' })
+    ).rejects.toThrow(/Scraper worker error: 500/);
   });
 });

@@ -32,3 +32,16 @@ interface ScrapeStatus {
 }
 
 export type ScrapeStatusResponse = Record<string, ScrapeStatus>;
+
+export interface PreviewAvailability {
+    available: boolean;
+    circularId?: string;
+    startDate?: string;
+    endDate?: string;
+    reason?: 'store_not_found' | 'not_implemented' | 'upstream_error';
+    message?: string;
+}
+
+export interface PreviewAvailabilityResponse {
+    availability: Record<string, PreviewAvailability>;
+}

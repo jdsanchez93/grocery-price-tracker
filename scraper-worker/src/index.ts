@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
-import { scrapeKingSoopers } from './kingsoopers.js';
+import { scrapeKingSoopers, fetchKingSoopersCirculars } from './kingsoopers.js';
 
 const app = new Hono();
 const API_KEY = process.env.API_KEY;
@@ -42,6 +42,23 @@ app.post('/scrape/kingsoopers', async (c) => {
     }
     throw err;
   }
+});
+
+// Return the list of weeklyAd circulars (current + preview) for a store.
+// Metadata only — no deal fetching, no BOGO resolution, no DDB writes.
+// Used by /admin/scrape/preview-availability to peek at upstream cheaply.
+app.post('/scrape/kingsoopers/circulars', async (c) => {
+  const body = await c.req.json<{ storeId: string; facilityId: string }>();
+  const { storeId, facilityId } = body;
+
+  if (!storeId || !facilityId) {
+    return c.json({ error: 'storeId and facilityId are required' }, 400);
+  }
+
+  console.log(`[circulars] storeId=${storeId} facilityId=${facilityId}`);
+  const circulars = await fetchKingSoopersCirculars(storeId, facilityId);
+  console.log(`[circulars] returned ${circulars.length} weeklyAd entries`);
+  return c.json({ circulars });
 });
 
 app.get('/health', (c) => c.json({ ok: true }));

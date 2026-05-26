@@ -4,6 +4,8 @@ import { logger } from './logger';
 import {
   fetchWeeklyDeals,
   fetchAndPersistWeeklyDeals,
+  fetchCircularsList,
+  toStoreLocalDate,
   NoCircularError,
 } from './scraper/kingsoopers';
 import {
@@ -183,6 +185,74 @@ export function createApp() {
     );
     const status = Object.fromEntries(entries);
     return c.json(status);
+  });
+
+  // Check whether each store has a "next week" preview circular available upstream.
+  // Read-only peek: hits the upstream API (Kroger circulars list, Flipp publications),
+  // returns metadata, writes nothing to DDB. Used as a research tool to figure out
+  // when each chain typically publishes the next week's ad.
+  app.get('/admin/scrape/preview-availability', requirePermission('scraper:run'), async (c) => {
+    const instanceIds = c.req.query('instanceIds');
+    if (!instanceIds) {
+      return c.json({ error: 'instanceIds is required' }, 400);
+    }
+
+    const instanceIdArray: string[] = instanceIds.split(',');
+
+    const entries = await Promise.all(
+      instanceIdArray.map(async (id) => {
+        const store = await getStoreInstance(id);
+        if (!store) {
+          return [id, { available: false, reason: 'store_not_found' as const }] as const;
+        }
+
+        try {
+          switch (store.identifiers.type) {
+            case 'kingsoopers': {
+              const list = await fetchCircularsList(store.identifiers);
+              const preview = list.find((c) => c.previewCircular);
+              if (!preview) {
+                return [id, { available: false }] as const;
+              }
+              return [id, {
+                available: true,
+                circularId: preview.circularId,
+                startDate: toStoreLocalDate(preview.startDate, preview.timezone),
+                endDate: toStoreLocalDate(preview.endDate, preview.timezone),
+              }] as const;
+            }
+            case 'safeway': {
+              const { publications } = await fetchSafewayPublications(store.identifiers);
+              const ads = extractSafewayWeeklyAds(publications);
+              const today = todayInStoreTz(store.timezone);
+              const future = ads.find((a) => a.startDate > today);
+              if (!future) {
+                return [id, { available: false }] as const;
+              }
+              return [id, {
+                available: true,
+                circularId: future.circularId,
+                startDate: future.startDate,
+                endDate: future.endDate,
+              }] as const;
+            }
+            case 'sprouts':
+              return [id, { available: false, reason: 'not_implemented' as const }] as const;
+            default: {
+              const _exhaustive: never = store.identifiers;
+              return [id, { available: false, reason: 'not_implemented' as const }] as const;
+            }
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Unknown error';
+          logger.warn({ instanceId: id, err: message }, 'preview-availability upstream error');
+          return [id, { available: false, reason: 'upstream_error' as const, message }] as const;
+        }
+      })
+    );
+
+    const availability = Object.fromEntries(entries);
+    return c.json({ availability });
   });
 
   // Preview deals for a store instance (no persist)
