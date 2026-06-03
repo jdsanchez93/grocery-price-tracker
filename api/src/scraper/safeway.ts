@@ -16,10 +16,22 @@ export interface WeeklyAdMetadata {
 interface FlippPublication {
   id: number;
   external_display_name: string;
+  // Both the displayed-to-user "Weekly Ad" string AND a stable internal
+  // identifier — `flyer_type_id` is Flipp's canonical publication-type id
+  // (10457 = Safeway weekly ad). `name` is the long form like
+  // "Weekly Ad - Safeway - Denver". Either can be used to identify a weekly
+  // ad even when `external_display_name` is empty (observed in prod 2026-06).
+  name?: string;
+  flyer_type_id?: number;
   valid_from: string;
   valid_to: string;
   storefront_id: number;
 }
+
+// Flipp's canonical id for the Safeway "Weekly Ad" publication type. Both
+// current and preview circulars carry this id even when their other labels
+// drift.
+const FLYER_TYPE_ID_SAFEWAY_WEEKLY_AD = 10457;
 
 interface FlippProduct {
   id: number;
@@ -98,12 +110,28 @@ export async function fetchPublications(
  * Extract all Weekly Ad entries from a Flipp publications response, sorted by startDate.
  * Returns multiple entries when Flipp exposes both current and preview ads simultaneously.
  * Dates are store-local calendar dates (Flipp's offset is its server TZ, not the store's).
+ *
+ * Identifies a "Weekly Ad" by an OR of three signals so we don't silently miss a
+ * publication when one upstream label drifts (observed 2026-06-02: Safeway/Flipp
+ * cleared `external_display_name` on the preview circular while leaving the
+ * other two fields intact, which broke the scheduled scrape and the admin
+ * preview-availability button until this filter was broadened):
+ *   1. `flyer_type_id === 10457` — Flipp's canonical id for the Safeway weekly
+ *      ad; survived the 2026-06 incident and is the strongest signal.
+ *   2. `external_display_name === 'Weekly Ad'` — historical label, still set
+ *      on the current circular.
+ *   3. `name` starts with "Weekly Ad" — Safeway's long-form name is
+ *      "Weekly Ad - <chain> - <region>" for both current and preview.
  */
 export function extractWeeklyAds(
   publications: FlippPublication[]
 ): WeeklyAdMetadata[] {
   return publications
-    .filter((pub) => pub.external_display_name === 'Weekly Ad')
+    .filter((pub) =>
+      pub.flyer_type_id === FLYER_TYPE_ID_SAFEWAY_WEEKLY_AD ||
+      pub.external_display_name === 'Weekly Ad' ||
+      pub.name?.startsWith('Weekly Ad') === true
+    )
     .map((pub) => ({
       circularId: pub.id.toString(),
       startDate: pub.valid_from.split('T')[0],

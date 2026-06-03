@@ -78,7 +78,7 @@ Store instance IDs are `{type}:{sha256_hash(identifiers)}`. Supported chains: `k
 - `weekId < currentWeekId` (lexical compare) is the correct way to filter "strictly past" weeks; works across year boundaries since the format is zero-padded.
 
 ### Scheduled preview-scrape (prod-only)
-- **EventBridge Scheduler** fires a weekly recurring schedule Tue 9am `America/Denver` → planner Lambda → per-store one-time schedules at uniformly random times in `[SCHEDULE_WINDOW_START_HOUR, END_HOUR]` MT today (defaults 9/23, env-tunable on the planner Lambda) → worker Lambda → existing `fetchAndPersistWeeklyDeals(..., { preview: true })`.
+- **EventBridge Scheduler** fires a weekly recurring schedule Tue 9am `America/Denver` → planner Lambda → per-store one-time schedules at uniformly random times in `[SCHEDULE_WINDOW_START_HOUR, END_HOUR]` MT today (defaults 12/23, env-tunable on the planner Lambda) → worker Lambda → existing `fetchAndPersistWeeklyDeals(..., { preview: true })`.
 - One-time schedules use `ActionAfterCompletion: DELETE` to self-clean. Deterministic schedule names = idempotent on planner re-runs (`ConflictException` swallowed).
 - Manual triggers: `POST /admin/scheduler/plan-now?dryRun=true|false` (default `true`). Dev tests scheduling logic via dryRun against local API + DDB without touching AWS. Prod escape hatch with `?dryRun=false`.
 - `@aws-sdk/client-scheduler` is **not** in the Lambda Node 22 runtime defaults, so the planner Lambda bundles it (whereas the api Lambda externalizes `@aws-sdk/*` since it only uses runtime-provided clients).
