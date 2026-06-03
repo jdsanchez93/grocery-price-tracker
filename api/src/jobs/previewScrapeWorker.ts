@@ -75,7 +75,11 @@ export async function runWorker(instanceId: string): Promise<WorkerOutcome> {
     }
   } catch (err) {
     if (err instanceof NoCircularError) {
-      logger.info({ instanceId, msg: err.message }, 'kroger: no preview available yet');
+      // Both Kroger and Safeway scrapers can throw this after the Safeway
+      // refactor — the `instanceId` field on the structured log carries the
+      // chain (e.g. "safeway:xxx" vs "kingsoopers:xxx"), so we don't need to
+      // prefix the message.
+      logger.info({ instanceId, reason: err.message }, 'no preview available yet');
       return { result: 'no_preview_available' };
     }
     // Genuine error — let EventBridge Scheduler retry per its policy.

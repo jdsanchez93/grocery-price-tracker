@@ -145,7 +145,7 @@ export class AppStack extends cdk.Stack {
         WORKER_FUNCTION_ARN: previewWorkerFunction.functionArn,
         SCHEDULER_INVOKE_ROLE_ARN: schedulerInvokeRole.roleArn,
         SCHEDULE_GROUP_NAME: previewScheduleGroup.name!,
-        SCHEDULE_WINDOW_START_HOUR: '9',
+        SCHEDULE_WINDOW_START_HOUR: '12',
         SCHEDULE_WINDOW_END_HOUR: '23',
       },
     });
@@ -178,7 +178,7 @@ export class AppStack extends cdk.Stack {
     apiFunction.addEnvironment('WORKER_FUNCTION_ARN', previewWorkerFunction.functionArn);
     apiFunction.addEnvironment('SCHEDULER_INVOKE_ROLE_ARN', schedulerInvokeRole.roleArn);
     apiFunction.addEnvironment('SCHEDULE_GROUP_NAME', previewScheduleGroup.name!);
-    apiFunction.addEnvironment('SCHEDULE_WINDOW_START_HOUR', '9');
+    apiFunction.addEnvironment('SCHEDULE_WINDOW_START_HOUR', '12');
     apiFunction.addEnvironment('SCHEDULE_WINDOW_END_HOUR', '23');
 
     // Role for EventBridge Scheduler to invoke the planner Lambda (the weekly

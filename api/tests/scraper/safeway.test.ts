@@ -67,6 +67,50 @@ describe('extractWeeklyAds', () => {
     expect(ads[0].startDate).toBe('2026-05-13');
     expect(ads[0].endDate).toBe('2026-05-19');
   });
+
+  // Regression for 2026-06-02 incident: Safeway/Flipp dropped the human-readable
+  // `external_display_name` label on the preview circular, leaving it empty.
+  // The fallback signals (flyer_type_id and name) must still identify it as a
+  // weekly ad, otherwise the scheduled scrape silently misses it.
+  it('picks up a preview circular whose external_display_name is empty', () => {
+    const ads = extractWeeklyAds([
+      // Current: full label still present
+      pub({
+        id: 7942088,
+        external_display_name: 'Weekly Ad',
+        name: 'Weekly Ad - Safeway - Denver',
+        flyer_type_id: 10457,
+        valid_from: '2026-05-27T00:00:00-04:00',
+        valid_to: '2026-06-02T23:59:59-04:00',
+      }),
+      // Preview: external_display_name cleared, but flyer_type_id and name still identify it.
+      pub({
+        id: 7957959,
+        external_display_name: '',
+        name: 'Weekly Ad - Safeway - Denver',
+        flyer_type_id: 10457,
+        valid_from: '2026-06-03T00:00:00-04:00',
+        valid_to: '2026-06-09T23:59:59-04:00',
+      }),
+    ]);
+    expect(ads.map((a) => a.circularId)).toEqual(['7942088', '7957959']);
+  });
+
+  it('still excludes Big Book of Savings when only flyer_type_id is set (not 10457)', () => {
+    // BBS in prod has flyer_type_id 10642 (not 10457) and a name that doesn't
+    // start with "Weekly Ad". Verifies the broadened filter didn't over-match.
+    const ads = extractWeeklyAds([
+      pub({
+        id: 7943049,
+        external_display_name: 'Big Book of Savings',
+        name: 'Safeway - Denver - BBS',
+        flyer_type_id: 10642,
+        valid_from: '2026-05-26T00:00:00-04:00',
+        valid_to: '2026-06-22T23:59:59-04:00',
+      }),
+    ]);
+    expect(ads).toEqual([]);
+  });
 });
 
 // High-level wrapper that mirrors Kroger's fetchAndPersistWeeklyDeals.
