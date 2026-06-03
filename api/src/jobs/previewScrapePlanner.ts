@@ -52,7 +52,7 @@ export async function runPlanner(opts: PlannerOptions = {}): Promise<PlannerRepo
   const WORKER_ARN = process.env.WORKER_FUNCTION_ARN;
   const INVOKE_ROLE = process.env.SCHEDULER_INVOKE_ROLE_ARN;
   const GROUP = process.env.SCHEDULE_GROUP_NAME ?? 'preview-scrape';
-  const WIN_START = Number(process.env.SCHEDULE_WINDOW_START_HOUR ?? '9');
+  const WIN_START = Number(process.env.SCHEDULE_WINDOW_START_HOUR ?? '12');
   const WIN_END = Number(process.env.SCHEDULE_WINDOW_END_HOUR ?? '23');
 
   if (!dryRun) {
