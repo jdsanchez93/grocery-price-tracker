@@ -3,21 +3,25 @@ import { AppLayout } from './layout/component/app.layout';
 import { AuthGuard } from '@auth0/auth0-angular';
 import { roleGuard } from './core/auth/role.guard';
 import { landingGuard } from './core/auth/landing.guard';
+import { Landing } from './pages/landing/landing';
+import { Dashboard } from './pages/dashboard/dashboard';
 
 export const routes: Routes = [
     {
         path: '',
         pathMatch: 'full',
         canActivate: [landingGuard],
-        loadComponent: () => import('./pages/landing/landing').then(m => m.Landing)
+        component: Landing
     },
     {
         path: '',
         component: AppLayout,
         canActivate: [AuthGuard],
         children: [
-            { path: 'dashboard', loadComponent: () => import('./pages/dashboard/dashboard').then(m => m.Dashboard) },
-            { path: 'deals', loadChildren: () => import('./pages/deals/deals.routes') },
+            // Eagerly loaded: the post-auth landing spot. Bundling it into main
+            // means the guard-resolved redirect renders with no chunk wait.
+            { path: 'dashboard', component: Dashboard },
+            { path: 'deals', data: { preload: true }, loadChildren: () => import('./pages/deals/deals.routes') },
             { path: 'user/stores', loadComponent: () => import('./pages/stores/user-stores/user-stores').then(m => m.UserStores) },
             { path: 'user/profile', loadComponent: () => import('./pages/user/profile/profile').then(m => m.Profile) },
             { path: 'analytics/products/:id/history', loadComponent: () => import('./pages/analytics/product-history/product-history').then(m => m.ProductHistory), canActivate: [roleGuard('power_user', 'admin')] },

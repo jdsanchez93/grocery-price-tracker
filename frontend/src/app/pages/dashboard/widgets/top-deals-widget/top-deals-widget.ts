@@ -3,6 +3,7 @@ import { DealsService } from '@/app/core/services/deals.service';
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { DealRatingBadge } from "@/app/shared/components/deal-rating-badge/deal-rating-badge";
 import { DividerModule } from 'primeng/divider';
+import { SkeletonModule } from 'primeng/skeleton';
 
 type RatedDeal = Deal & { rating: DealRating };
 
@@ -10,12 +11,24 @@ const GOOD_RATINGS: DealRating['label'][] = ['best', 'good'];
 
 @Component({
   selector: 'app-top-deals-widget',
-  imports: [DealRatingBadge, DividerModule],
+  imports: [DealRatingBadge, DividerModule, SkeletonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="card">
       <div class="font-semibold text-xl mb-6">Top Deals</div>
-      @if (topDeals().length === 0) {
+      @if (loading()) {
+        <ul class="list-none p-0" aria-busy="true" aria-label="Loading top deals">
+          @for (i of [1, 2, 3]; track i; let last = $last) {
+            <li class="flex flex-col gap-2">
+              <p-skeleton width="14rem" height="1.25rem" />
+              <p-skeleton width="8rem" height="1rem" />
+            </li>
+            @if (!last) {
+              <p-divider />
+            }
+          }
+        </ul>
+      } @else if (topDeals().length === 0) {
         <div class="text-center py-8">
           <i class="pi pi-tag text-4xl text-muted-color mb-4" aria-hidden="true"></i>
           <p class="text-muted-color">No deals loaded yet.</p>
@@ -48,6 +61,8 @@ const GOOD_RATINGS: DealRating['label'][] = ['best', 'good'];
 })
 export class TopDealsWidget {
   private dealsService = inject(DealsService);
+
+  loading = this.dealsService.loading;
 
   topDeals = computed(() => {
     return this.dealsService.deals()

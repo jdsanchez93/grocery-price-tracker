@@ -1,5 +1,6 @@
 import { Component, ChangeDetectionStrategy, inject, computed } from '@angular/core';
 import { DealsService } from '@/app/core/services/deals.service';
+import { SkeletonModule } from 'primeng/skeleton';
 
 interface DepartmentCount {
   name: string;
@@ -10,10 +11,20 @@ interface DepartmentCount {
 @Component({
   selector: 'app-department-widget',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [SkeletonModule],
   template: `
     <div class="card">
       <div class="font-semibold text-xl mb-6">Department Breakdown</div>
-      @if (topDepartments().length === 0) {
+      @if (loading()) {
+        <ul class="list-none p-0 m-0" aria-busy="true" aria-label="Loading department breakdown">
+          @for (i of [1, 2, 3, 4, 5]; track i) {
+            <li class="flex items-center justify-between mb-6">
+              <p-skeleton width="8rem" height="1.25rem" />
+              <p-skeleton width="10rem" height="0.5rem" />
+            </li>
+          }
+        </ul>
+      } @else if (topDepartments().length === 0) {
         <div class="text-center py-8">
           <i class="pi pi-th-large text-4xl text-muted-color mb-4" aria-hidden="true"></i>
           <p class="text-muted-color">No deals loaded yet.</p>
@@ -40,6 +51,8 @@ interface DepartmentCount {
 })
 export class DepartmentWidget {
   private dealsService = inject(DealsService);
+
+  loading = this.dealsService.loading;
 
   topDepartments = computed<DepartmentCount[]>(() => {
     const deals = this.dealsService.deals();

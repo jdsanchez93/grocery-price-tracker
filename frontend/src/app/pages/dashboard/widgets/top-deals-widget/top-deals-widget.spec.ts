@@ -26,11 +26,12 @@ function makeRating(overrides: Partial<DealRating> = {}): DealRating {
 
 describe('TopDealsWidget', () => {
   const deals = signal<Deal[]>([]);
+  const loading = signal(false);
 
   function setup() {
     TestBed.configureTestingModule({
       providers: [
-        { provide: DealsService, useValue: { deals: deals.asReadonly() } },
+        { provide: DealsService, useValue: { deals: deals.asReadonly(), loading: loading.asReadonly() } },
       ],
     })
       .overrideComponent(TopDealsWidget, {
@@ -40,7 +41,10 @@ describe('TopDealsWidget', () => {
     return TestBed.createComponent(TopDealsWidget);
   }
 
-  beforeEach(() => deals.set([]));
+  beforeEach(() => {
+    deals.set([]);
+    loading.set(false);
+  });
 
   it('should create', () => {
     expect(setup().componentInstance).toBeTruthy();
@@ -95,6 +99,14 @@ describe('TopDealsWidget', () => {
   });
 
   describe('template', () => {
+    it('should show skeletons instead of empty state while loading', () => {
+      loading.set(true);
+      const fixture = setup();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelectorAll('p-skeleton').length).toBeGreaterThan(0);
+      expect(fixture.nativeElement.textContent).not.toContain('No deals loaded yet');
+    });
+
     it('should show empty state when no qualifying deals', () => {
       const fixture = setup();
       fixture.detectChanges();

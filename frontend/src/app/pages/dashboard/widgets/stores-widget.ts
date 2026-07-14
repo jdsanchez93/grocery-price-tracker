@@ -3,11 +3,12 @@ import { RouterLink } from '@angular/router';
 import { StoresService } from '@/app/core/services/stores.service';
 import { DealsService } from '@/app/core/services/deals.service';
 import { StoreCard } from '@/app/shared/components/store-card/store-card';
+import { SkeletonModule } from 'primeng/skeleton';
 
 @Component({
   selector: 'app-stores-widget',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [StoreCard, RouterLink],
+  imports: [StoreCard, RouterLink, SkeletonModule],
   template: `
     <div class="card">
       <div class="font-semibold text-xl mb-6">Your Stores</div>
@@ -22,7 +23,11 @@ import { StoreCard } from '@/app/shared/components/store-card/store-card';
           @for (store of stores(); track store.instanceId) {
             <a routerLink="/deals/current-deals" class="no-underline">
               <app-store-card [name]="store.name" [storeType]="store.storeType">
-                <span class="text-muted-color text-sm">{{ storeDealCounts()[store.instanceId] || 0 }} deals</span>
+                @if (dealsLoading()) {
+                  <p-skeleton width="4rem" height="1rem" />
+                } @else {
+                  <span class="text-muted-color text-sm">{{ storeDealCounts()[store.instanceId] || 0 }} deals</span>
+                }
               </app-store-card>
             </a>
           }
@@ -36,6 +41,7 @@ export class StoresWidget {
   private dealsService = inject(DealsService);
 
   stores = this.storesService.getUserStores;
+  dealsLoading = this.dealsService.loading;
 
   storeDealCounts = computed(() => {
     const counts: Record<string, number> = {};

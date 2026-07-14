@@ -7,13 +7,14 @@ import { Deal } from '@/app/core/models/deal.model';
 
 describe('DepartmentWidget', () => {
   const deals = signal<Deal[]>([]);
+  const loading = signal(false);
 
   function setup() {
     TestBed.configureTestingModule({
       providers: [
         {
           provide: DealsService,
-          useValue: { deals: deals.asReadonly() },
+          useValue: { deals: deals.asReadonly(), loading: loading.asReadonly() },
         },
       ],
     });
@@ -22,6 +23,15 @@ describe('DepartmentWidget', () => {
 
   beforeEach(() => {
     deals.set([]);
+    loading.set(false);
+  });
+
+  it('should show skeletons instead of empty state while loading', () => {
+    loading.set(true);
+    const fixture = setup();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('p-skeleton').length).toBeGreaterThan(0);
+    expect(fixture.nativeElement.textContent).not.toContain('No deals loaded yet');
   });
 
   it('should create', () => {

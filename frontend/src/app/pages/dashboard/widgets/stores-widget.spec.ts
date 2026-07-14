@@ -21,6 +21,7 @@ function makeUserStore(overrides: Partial<UserStore> = {}): UserStore {
 
 describe('StoresWidget', () => {
   const deals = signal<Deal[]>([]);
+  const loading = signal(false);
   const userStores = signal<UserStore[]>([]);
 
   function setup() {
@@ -29,7 +30,7 @@ describe('StoresWidget', () => {
         provideRouter([]),
         {
           provide: DealsService,
-          useValue: { deals: deals.asReadonly() },
+          useValue: { deals: deals.asReadonly(), loading: loading.asReadonly() },
         },
         {
           provide: StoresService,
@@ -42,7 +43,17 @@ describe('StoresWidget', () => {
 
   beforeEach(() => {
     deals.set([]);
+    loading.set(false);
     userStores.set([]);
+  });
+
+  it('should show a skeleton for deal counts while deals load', () => {
+    loading.set(true);
+    userStores.set([makeUserStore()]);
+    const fixture = setup();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('p-skeleton').length).toBeGreaterThan(0);
+    expect(fixture.nativeElement.textContent).not.toContain('deals');
   });
 
   it('should create', () => {
