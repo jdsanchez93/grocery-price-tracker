@@ -7,11 +7,12 @@ import { DepartmentWidget } from './widgets/department-widget';
 import { StoresService } from '@/app/core/services/stores.service';
 import { RoleService } from '@/app/core/services/role.service';
 import { TopDealsWidget } from "./widgets/top-deals-widget/top-deals-widget";
+import { SkeletonModule } from 'primeng/skeleton';
 
 @Component({
   selector: 'app-dashboard',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [StatsWidget, StoresWidget, DepartmentWidget, ButtonModule, RouterLink, TopDealsWidget],
+  imports: [StatsWidget, StoresWidget, DepartmentWidget, ButtonModule, RouterLink, TopDealsWidget, SkeletonModule],
   styles: `
     .empty-dashboard {
       display: flex;
@@ -58,7 +59,19 @@ import { TopDealsWidget } from "./widgets/top-deals-widget/top-deals-widget";
         <app-stores-widget class="col-span-12 xl:col-span-6" />
         <app-department-widget class="col-span-12 xl:col-span-6" />
       </div>
-    } @else if (!loading()) {
+    } @else if (loading()) {
+      <!-- Skeleton mirroring the widget grid while stores load -->
+      <div class="grid grid-cols-12 gap-8" aria-busy="true" aria-label="Loading dashboard">
+        @if (isPowerUser()) {
+          <div class="col-span-12 card"><p-skeleton height="14rem" /></div>
+        }
+        @for (i of [1, 2, 3, 4]; track i) {
+          <div class="col-span-12 lg:col-span-6 xl:col-span-3 card mb-0"><p-skeleton height="5rem" /></div>
+        }
+        <div class="col-span-12 xl:col-span-6 card"><p-skeleton height="12rem" /></div>
+        <div class="col-span-12 xl:col-span-6 card"><p-skeleton height="12rem" /></div>
+      </div>
+    } @else {
       <div class="empty-dashboard">
         <div class="get-started-card">
           <i class="pi pi-shop" aria-hidden="true"></i>

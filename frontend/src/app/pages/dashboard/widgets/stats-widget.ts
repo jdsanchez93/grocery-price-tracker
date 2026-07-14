@@ -1,10 +1,12 @@
 import { Component, ChangeDetectionStrategy, inject, computed } from '@angular/core';
 import { DealsService } from '@/app/core/services/deals.service';
 import { StoresService } from '@/app/core/services/stores.service';
+import { SkeletonModule } from 'primeng/skeleton';
 
 @Component({
   selector: 'app-stats-widget',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [SkeletonModule],
   host: { class: 'contents' },
   template: `
     <div class="col-span-12 lg:col-span-6 xl:col-span-3">
@@ -12,7 +14,11 @@ import { StoresService } from '@/app/core/services/stores.service';
         <div class="flex justify-between mb-4">
           <div>
             <span class="block text-muted-color font-medium mb-4">Total Deals</span>
-            <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">{{ totalDeals() }}</div>
+            @if (dealsLoading()) {
+              <p-skeleton width="3rem" height="1.75rem" />
+            } @else {
+              <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">{{ totalDeals() }}</div>
+            }
           </div>
           <div class="flex items-center justify-center bg-blue-100 dark:bg-blue-400/10 rounded-border" style="width: 2.5rem; height: 2.5rem">
             <i class="pi pi-tag text-blue-500 !text-xl" aria-hidden="true"></i>
@@ -40,7 +46,11 @@ import { StoresService } from '@/app/core/services/stores.service';
         <div class="flex justify-between mb-4">
           <div>
             <span class="block text-muted-color font-medium mb-4">Departments</span>
-            <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">{{ departmentCount() }}</div>
+            @if (dealsLoading()) {
+              <p-skeleton width="3rem" height="1.75rem" />
+            } @else {
+              <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">{{ departmentCount() }}</div>
+            }
           </div>
           <div class="flex items-center justify-center bg-cyan-100 dark:bg-cyan-400/10 rounded-border" style="width: 2.5rem; height: 2.5rem">
             <i class="pi pi-th-large text-cyan-500 !text-xl" aria-hidden="true"></i>
@@ -54,7 +64,11 @@ import { StoresService } from '@/app/core/services/stores.service';
         <div class="flex justify-between mb-4">
           <div>
             <span class="block text-muted-color font-medium mb-4">Loyalty Deals</span>
-            <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">{{ loyaltyDeals() }}</div>
+            @if (dealsLoading()) {
+              <p-skeleton width="3rem" height="1.75rem" />
+            } @else {
+              <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">{{ loyaltyDeals() }}</div>
+            }
           </div>
           <div class="flex items-center justify-center bg-purple-100 dark:bg-purple-400/10 rounded-border" style="width: 2.5rem; height: 2.5rem">
             <i class="pi pi-star text-purple-500 !text-xl" aria-hidden="true"></i>
@@ -68,6 +82,8 @@ import { StoresService } from '@/app/core/services/stores.service';
 export class StatsWidget {
   private dealsService = inject(DealsService);
   private storesService = inject(StoresService);
+
+  dealsLoading = this.dealsService.loading;
 
   totalDeals = computed(() => this.dealsService.deals().length);
   storesTracked = computed(() => this.storesService.getUserStores().length);

@@ -37,6 +37,7 @@ describe('Dashboard', () => {
           useValue: {
             deals: signal([]).asReadonly(),
             departments: signal([]).asReadonly(),
+            loading: signal(false).asReadonly(),
           },
         },
         {
@@ -97,6 +98,20 @@ describe('Dashboard', () => {
     const fixture = setup();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.get-started-card')).toBeFalsy();
+  });
+
+  it('should show a skeleton grid while stores load', () => {
+    loading.set(true);
+    const fixture = setup();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('p-skeleton').length).toBeGreaterThan(0);
+  });
+
+  it('should not show skeletons once stores are loaded', () => {
+    userStores.set([makeUserStore()]);
+    const fixture = setup();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.grid > .card p-skeleton')).toBeFalsy();
   });
 
   it('should not show widgets when no stores', () => {

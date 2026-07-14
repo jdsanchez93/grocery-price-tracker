@@ -21,6 +21,7 @@ function makeUserStore(overrides: Partial<UserStore> = {}): UserStore {
 describe('StatsWidget', () => {
   const deals = signal<Deal[]>([]);
   const departments = signal<string[]>([]);
+  const loading = signal(false);
   const userStores = signal<UserStore[]>([]);
 
   function setup() {
@@ -28,7 +29,7 @@ describe('StatsWidget', () => {
       providers: [
         {
           provide: DealsService,
-          useValue: { deals: deals.asReadonly(), departments: departments.asReadonly() },
+          useValue: { deals: deals.asReadonly(), departments: departments.asReadonly(), loading: loading.asReadonly() },
         },
         {
           provide: StoresService,
@@ -42,12 +43,20 @@ describe('StatsWidget', () => {
   beforeEach(() => {
     deals.set([]);
     departments.set([]);
+    loading.set(false);
     userStores.set([]);
   });
 
   it('should create', () => {
     const fixture = setup();
     expect(fixture.componentInstance).toBeTruthy();
+  });
+
+  it('should show skeletons for deal-derived stats while deals load', () => {
+    loading.set(true);
+    const fixture = setup();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('p-skeleton').length).toBe(3);
   });
 
   it('should show zero counts when no data', () => {
