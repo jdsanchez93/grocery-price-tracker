@@ -294,10 +294,15 @@ function handler(event) {
     // --- Frontend deployment (only if dist exists) ---
     const frontendDistPath = path.join(__dirname, '../../frontend/dist/frontend/browser');
     if (fs.existsSync(frontendDistPath)) {
-      // Hashed JS/CSS assets — cache forever (hash changes on every new build)
+      // Hashed JS/CSS assets — cache forever (hash changes on every new build).
+      // prune: false keeps previous builds' chunks in the bucket so users whose
+      // open tab still holds a stale index.html don't 404 on lazy-route chunks
+      // mid-session after a deploy. Old hashed files are tiny; clean up manually
+      // (or via a lifecycle rule) if the bucket ever grows enough to matter.
       new s3deploy.BucketDeployment(this, 'FrontendAssetsDeployment', {
         sources: [s3deploy.Source.asset(frontendDistPath)],
         destinationBucket: frontendBucket,
+        prune: false,
         distribution,
         distributionPaths: ['/*'],
         exclude: ['index.html'],
