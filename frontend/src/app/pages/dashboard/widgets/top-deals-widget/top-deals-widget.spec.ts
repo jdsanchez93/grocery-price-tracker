@@ -1,10 +1,11 @@
 import { Component, input, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Deal, DealRating } from '@/app/core/models/deal.model';
+import { provideRouter } from '@angular/router';
+import { DealRating, RatedDeal } from '@/app/core/models/deal.model';
 import { makeDeal } from '@/app/core/models/test-utils';
 import { DealsService } from '@/app/core/services/deals.service';
 import { DealRatingBadge } from '@/app/shared/components/deal-rating-badge/deal-rating-badge';
-import { TopDealsWidget } from './top-deals-widget';
+import { TopDealsWidget, TOP_DEALS_WIDGET_LIMIT } from './top-deals-widget';
 
 @Component({ selector: 'app-deal-rating-badge', template: '' })
 class StubDealRatingBadge {
@@ -24,14 +25,19 @@ function makeRating(overrides: Partial<DealRating> = {}): DealRating {
   };
 }
 
+function makeRatedDeal(dealId: string, overrides: Partial<RatedDeal> = {}): RatedDeal {
+  return { ...makeDeal({ dealId }), rating: makeRating(), ...overrides };
+}
+
 describe('TopDealsWidget', () => {
-  const deals = signal<Deal[]>([]);
+  const topDeals = signal<RatedDeal[]>([]);
   const loading = signal(false);
 
   function setup() {
     TestBed.configureTestingModule({
       providers: [
-        { provide: DealsService, useValue: { deals: deals.asReadonly(), loading: loading.asReadonly() } },
+        provideRouter([]),
+        { provide: DealsService, useValue: { topDeals: topDeals.asReadonly(), loading: loading.asReadonly() } },
       ],
     })
       .overrideComponent(TopDealsWidget, {
@@ -42,7 +48,7 @@ describe('TopDealsWidget', () => {
   }
 
   beforeEach(() => {
-    deals.set([]);
+    topDeals.set([]);
     loading.set(false);
   });
 
@@ -50,51 +56,47 @@ describe('TopDealsWidget', () => {
     expect(setup().componentInstance).toBeTruthy();
   });
 
-  describe('topDeals computed', () => {
-    it('should return empty array when no deals', () => {
-      expect(setup().componentInstance.topDeals()).toEqual([]);
+  describe('topDeals limit', () => {
+    it('should show all deals when at or under the limit', () => {
+      topDeals.set([makeRatedDeal('1'), makeRatedDeal('2')]);
+      expect(setup().componentInstance.topDeals().length).toBe(2);
     });
 
-    it('should exclude unrated deals', () => {
-      deals.set([makeDeal({ dealId: '1' })]);
-      expect(setup().componentInstance.topDeals()).toEqual([]);
+    it('should cap the list at the widget limit', () => {
+      topDeals.set(Array.from({ length: TOP_DEALS_WIDGET_LIMIT + 3 }, (_, i) => makeRatedDeal(`${i}`)));
+      expect(setup().componentInstance.topDeals().length).toBe(TOP_DEALS_WIDGET_LIMIT);
     });
 
-    it('should exclude typical and high rated deals', () => {
-      deals.set([
-        makeDeal({ dealId: '1', rating: makeRating({ label: 'typical' }) }),
-        makeDeal({ dealId: '2', rating: makeRating({ label: 'high' }) }),
-      ]);
-      expect(setup().componentInstance.topDeals()).toEqual([]);
-    });
-
-    it('should include best and good rated deals', () => {
-      deals.set([
-        makeDeal({ dealId: '1', rating: makeRating({ label: 'best' }) }),
-        makeDeal({ dealId: '2', rating: makeRating({ label: 'good' }) }),
-      ]);
-      const result = setup().componentInstance.topDeals();
-      expect(result.length).toBe(2);
-    });
-
-    it('should sort best before good', () => {
-      deals.set([
-        makeDeal({ dealId: '1', rating: makeRating({ label: 'good', percentVsAvg: -20 }) }),
-        makeDeal({ dealId: '2', rating: makeRating({ label: 'best', percentVsAvg: -5 }) }),
-      ]);
-      const result = setup().componentInstance.topDeals();
-      expect(result[0].dealId).toBe('2');
-      expect(result[1].dealId).toBe('1');
-    });
-
-    it('should sort by percentVsAvg ascending within the same label', () => {
-      deals.set([
-        makeDeal({ dealId: '1', rating: makeRating({ label: 'good', percentVsAvg: -10 }) }),
-        makeDeal({ dealId: '2', rating: makeRating({ label: 'good', percentVsAvg: -25 }) }),
-        makeDeal({ dealId: '3', rating: makeRating({ label: 'good', percentVsAvg: -15 }) }),
-      ]);
+    it('should keep the first deals from the service ordering', () => {
+      topDeals.set(Array.from({ length: TOP_DEALS_WIDGET_LIMIT + 2 }, (_, i) => makeRatedDeal(`${i}`)));
       const ids = setup().componentInstance.topDeals().map(d => d.dealId);
-      expect(ids).toEqual(['2', '3', '1']);
+      expect(ids).toEqual(['0', '1', '2', '3', '4']);
+    });
+  });
+
+  describe('view-all link', () => {
+    it('should render the link with the total count when deals exist', () => {
+      topDeals.set(Array.from({ length: 7 }, (_, i) => makeRatedDeal(`${i}`)));
+      const fixture = setup();
+      fixture.detectChanges();
+      const link = fixture.nativeElement.querySelector('a');
+      expect(link).toBeTruthy();
+      expect(link.textContent).toContain('View all 7');
+      expect(link.getAttribute('href')).toBe('/deals/top-deals');
+    });
+
+    it('should not render the link when there are no top deals', () => {
+      const fixture = setup();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('a')).toBeFalsy();
+    });
+
+    it('should not render the link while loading', () => {
+      loading.set(true);
+      topDeals.set([makeRatedDeal('1')]);
+      const fixture = setup();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('a')).toBeFalsy();
     });
   });
 
@@ -119,19 +121,15 @@ describe('TopDealsWidget', () => {
       expect(fixture.nativeElement.querySelector('ul')).toBeFalsy();
     });
 
-    it('should render one list item per qualifying deal', () => {
-      deals.set([
-        makeDeal({ dealId: '1', rating: makeRating() }),
-        makeDeal({ dealId: '2', rating: makeRating() }),
-        makeDeal({ dealId: '3', rating: makeRating() }),
-      ]);
+    it('should render one list item per deal up to the limit', () => {
+      topDeals.set(Array.from({ length: TOP_DEALS_WIDGET_LIMIT + 2 }, (_, i) => makeRatedDeal(`${i}`)));
       const fixture = setup();
       fixture.detectChanges();
-      expect(fixture.nativeElement.querySelectorAll('li').length).toBe(3);
+      expect(fixture.nativeElement.querySelectorAll('li').length).toBe(TOP_DEALS_WIDGET_LIMIT);
     });
 
     it('should render deal name and price', () => {
-      deals.set([makeDeal({ dealId: '1', name: 'Organic Apples', priceDisplay: '$3.99/lb', rating: makeRating() })]);
+      topDeals.set([makeRatedDeal('1', { name: 'Organic Apples', priceDisplay: '$3.99/lb' })]);
       const fixture = setup();
       fixture.detectChanges();
       const text = fixture.nativeElement.textContent;
@@ -140,39 +138,31 @@ describe('TopDealsWidget', () => {
     });
 
     it('should render deal details when present', () => {
-      deals.set([makeDeal({ dealId: '1', details: 'Buy 1 Get 1 Free', rating: makeRating() })]);
+      topDeals.set([makeRatedDeal('1', { details: 'Buy 1 Get 1 Free' })]);
       const fixture = setup();
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain('Buy 1 Get 1 Free');
     });
 
     it('should render a rating badge per deal', () => {
-      deals.set([
-        makeDeal({ dealId: '1', rating: makeRating() }),
-        makeDeal({ dealId: '2', rating: makeRating() }),
-      ]);
+      topDeals.set([makeRatedDeal('1'), makeRatedDeal('2')]);
       const fixture = setup();
       fixture.detectChanges();
       expect(fixture.nativeElement.querySelectorAll('app-deal-rating-badge').length).toBe(2);
     });
 
     it('should render n-1 dividers for n deals', () => {
-      deals.set([
-        makeDeal({ dealId: '1', rating: makeRating() }),
-        makeDeal({ dealId: '2', rating: makeRating() }),
-        makeDeal({ dealId: '3', rating: makeRating() }),
-      ]);
+      topDeals.set([makeRatedDeal('1'), makeRatedDeal('2'), makeRatedDeal('3')]);
       const fixture = setup();
       fixture.detectChanges();
       expect(fixture.nativeElement.querySelectorAll('p-divider').length).toBe(2);
     });
 
     it('should not render a divider for a single deal', () => {
-      deals.set([makeDeal({ dealId: '1', rating: makeRating() })]);
+      topDeals.set([makeRatedDeal('1')]);
       const fixture = setup();
       fixture.detectChanges();
       expect(fixture.nativeElement.querySelectorAll('p-divider').length).toBe(0);
     });
-
   });
 });

@@ -36,6 +36,7 @@ describe('Dashboard', () => {
           provide: DealsService,
           useValue: {
             deals: signal([]).asReadonly(),
+            topDeals: signal([]).asReadonly(),
             departments: signal([]).asReadonly(),
             loading: signal(false).asReadonly(),
           },

@@ -56,3 +56,9 @@ export const LABEL_RANK: Record<DealRating['label'], number> = {
   typical: 2,
   high: 3,
 };
+
+/** A deal whose rating is known to be present. */
+export type RatedDeal = Deal & { rating: DealRating };
+
+/** Rating labels that qualify a deal for the "top deals" views. */
+export const TOP_DEAL_RATINGS: DealRating['label'][] = ['best', 'good'];
