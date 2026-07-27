@@ -3,6 +3,18 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { DealsService } from './deals.service';
 import { makeDeal } from '../models/test-utils';
+import { DealRating } from '../models/deal.model';
+
+function makeRating(overrides: Partial<DealRating> = {}): DealRating {
+  return {
+    label: 'good',
+    percentVsAvg: -15,
+    historicalAvg: 2.99,
+    historicalMin: 1.99,
+    sampleSize: 5,
+    ...overrides,
+  };
+}
 
 const API = '/api';
 
@@ -123,6 +135,73 @@ describe('DealsService', () => {
 
       expect(service.deals().map(d => d.dealId)).toEqual(['x']);
       httpCtrl.verify();
+    });
+  });
+
+  describe('topDeals', () => {
+    beforeEach(() => {
+      setup();
+      flushInitialRequests();
+    });
+
+    function flushDeals(deals: unknown[]) {
+      service.loadDeals();
+      httpCtrl.expectOne(`${API}/me/deals`).flush(makeCurrentResponse({ deals, count: deals.length }));
+    }
+
+    it('should exclude unrated deals', () => {
+      flushDeals([makeDeal({ dealId: '1' })]);
+      expect(service.topDeals()).toEqual([]);
+    });
+
+    it('should exclude typical and high rated deals', () => {
+      flushDeals([
+        makeDeal({ dealId: '1', rating: makeRating({ label: 'typical' }) }),
+        makeDeal({ dealId: '2', rating: makeRating({ label: 'high' }) }),
+      ]);
+      expect(service.topDeals()).toEqual([]);
+    });
+
+    it('should include best and good rated deals', () => {
+      flushDeals([
+        makeDeal({ dealId: '1', rating: makeRating({ label: 'best' }) }),
+        makeDeal({ dealId: '2', rating: makeRating({ label: 'good' }) }),
+      ]);
+      expect(service.topDeals().length).toBe(2);
+    });
+
+    it('should sort best before good', () => {
+      flushDeals([
+        makeDeal({ dealId: '1', rating: makeRating({ label: 'good', percentVsAvg: -20 }) }),
+        makeDeal({ dealId: '2', rating: makeRating({ label: 'best', percentVsAvg: -5 }) }),
+      ]);
+      expect(service.topDeals().map(d => d.dealId)).toEqual(['2', '1']);
+    });
+
+    it('should sort by percentVsAvg ascending within the same label', () => {
+      flushDeals([
+        makeDeal({ dealId: '1', rating: makeRating({ label: 'good', percentVsAvg: -10 }) }),
+        makeDeal({ dealId: '2', rating: makeRating({ label: 'good', percentVsAvg: -25 }) }),
+        makeDeal({ dealId: '3', rating: makeRating({ label: 'good', percentVsAvg: -15 }) }),
+      ]);
+      expect(service.topDeals().map(d => d.dealId)).toEqual(['2', '3', '1']);
+    });
+
+    it('should break ties deterministically by dealId', () => {
+      flushDeals([
+        makeDeal({ dealId: 'b', rating: makeRating({ label: 'good', percentVsAvg: -10 }) }),
+        makeDeal({ dealId: 'a', rating: makeRating({ label: 'good', percentVsAvg: -10 }) }),
+      ]);
+      expect(service.topDeals().map(d => d.dealId)).toEqual(['a', 'b']);
+    });
+
+    it('should not mutate the order of the deals signal', () => {
+      flushDeals([
+        makeDeal({ dealId: '1', rating: makeRating({ label: 'good' }) }),
+        makeDeal({ dealId: '2', rating: makeRating({ label: 'best' }) }),
+      ]);
+      service.topDeals();
+      expect(service.deals().map(d => d.dealId)).toEqual(['1', '2']);
     });
   });
 

@@ -26,6 +26,9 @@ export class AppMenu {
             items: [
                 { label: 'Dashboard', icon: 'pi pi-fw pi-home', routerLink: ['/dashboard'] },
                 { label: 'Current Deals', icon: 'pi pi-fw pi-tag', routerLink: ['/deals/current-deals'] },
+                ...(this.roles.isPowerUser() ? [
+                    { label: 'Top Deals', icon: 'pi pi-fw pi-star', routerLink: ['/deals/top-deals'] },
+                ] : []),
             ]
         },
         {

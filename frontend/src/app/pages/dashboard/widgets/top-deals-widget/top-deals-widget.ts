@@ -1,21 +1,28 @@
-import { Deal, DealRating, LABEL_RANK } from '@/app/core/models/deal.model';
 import { DealsService } from '@/app/core/services/deals.service';
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { DealRatingBadge } from "@/app/shared/components/deal-rating-badge/deal-rating-badge";
 import { DividerModule } from 'primeng/divider';
 import { SkeletonModule } from 'primeng/skeleton';
 
-type RatedDeal = Deal & { rating: DealRating };
-
-const GOOD_RATINGS: DealRating['label'][] = ['best', 'good'];
+/** Max deals shown on the dashboard; the full list lives at /deals/top-deals. */
+export const TOP_DEALS_WIDGET_LIMIT = 5;
 
 @Component({
   selector: 'app-top-deals-widget',
-  imports: [DealRatingBadge, DividerModule, SkeletonModule],
+  imports: [DealRatingBadge, DividerModule, SkeletonModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="card">
-      <div class="font-semibold text-xl mb-6">Top Deals</div>
+      <div class="flex items-center justify-between mb-6">
+        <div class="font-semibold text-xl">Top Deals</div>
+        @if (totalCount() > 0 && !loading()) {
+          <a
+            routerLink="/deals/top-deals"
+            class="text-primary font-medium hover:underline"
+          >View all {{ totalCount() }}</a>
+        }
+      </div>
       @if (loading()) {
         <ul class="list-none p-0" aria-busy="true" aria-label="Loading top deals">
           @for (i of [1, 2, 3]; track i; let last = $last) {
@@ -64,11 +71,7 @@ export class TopDealsWidget {
 
   loading = this.dealsService.loading;
 
-  topDeals = computed(() => {
-    return this.dealsService.deals()
-      .filter((d): d is RatedDeal => !!d.rating && GOOD_RATINGS.includes(d.rating.label))
-      .sort((a, b) =>
-        LABEL_RANK[a.rating.label] - LABEL_RANK[b.rating.label] || a.rating.percentVsAvg - b.rating.percentVsAvg
-      );
-  });
+  totalCount = computed(() => this.dealsService.topDeals().length);
+
+  topDeals = computed(() => this.dealsService.topDeals().slice(0, TOP_DEALS_WIDGET_LIMIT));
 }

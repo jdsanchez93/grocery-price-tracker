@@ -1,6 +1,6 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Deal, DealsResponse } from '../models/deal.model';
+import { Deal, DealsResponse, LABEL_RANK, RatedDeal, TOP_DEAL_RATINGS } from '../models/deal.model';
 import { environment } from '../../../environments/environment';
 
 @Injectable({
@@ -19,6 +19,21 @@ export class DealsService {
     const depts = new Set(this._deals().map(d => d.dept));
     return Array.from(depts).sort();
   });
+
+  /**
+   * Deals rated 'best' or 'good', ordered best-first: rating rank, then
+   * discount depth (percentVsAvg ascending), then dealId so ties are stable —
+   * the dashboard widget's top N is always a prefix of the top-deals page.
+   */
+  topDeals = computed<RatedDeal[]>(() =>
+    this._deals()
+      .filter((d): d is RatedDeal => !!d.rating && TOP_DEAL_RATINGS.includes(d.rating.label))
+      .sort((a, b) =>
+        LABEL_RANK[a.rating.label] - LABEL_RANK[b.rating.label]
+        || a.rating.percentVsAvg - b.rating.percentVsAvg
+        || a.dealId.localeCompare(b.dealId)
+      )
+  );
 
   constructor() {
     this.loadDeals();
