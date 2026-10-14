@@ -11,6 +11,7 @@ import { MessageService } from 'primeng/api';
 import { errorInterceptor } from './core/interceptors/error.interceptor';
 import { SelectivePreloadStrategy } from './core/selective-preload.strategy';
 import { provideChunkLoadRecovery } from './core/chunk-load-recovery';
+import { provideAuthSessionRecovery } from './core/auth/session-recovery';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -32,10 +33,25 @@ export const appConfig: ApplicationConfig = {
         audience: environment.auth0.audience,
         scope: 'openid profile email'
       },
+      // Keep tokens across reloads, new tabs and browser restarts, and renew
+      // them with a rotating refresh token (offline_access is added to the
+      // scope automatically) instead of hidden-iframe silent auth, which needs
+      // a live Auth0 session cookie and breaks under third-party cookie blocking.
+      cacheLocation: 'localstorage',
+      useRefreshTokens: true,
+      // No cached refresh token (first visit after this change, or the API
+      // isn't granting offline access): try iframe silent auth before giving up.
+      useRefreshTokensFallback: true,
+      // Lifetime of the SDK's "was signed in" hint cookie, which gates the
+      // startup session check. Default is 1 day; match the Auth0 app's
+      // maximum refresh token lifetime.
+      sessionCheckExpiryDays: 30,
       httpInterceptor: {
         allowedList: [`${environment.apiUrl}/*`]
       }
     }),
+    // Sends the user to Universal Login once the refresh token finally expires.
+    provideAuthSessionRecovery(),
     MessageService
   ]
 };
