@@ -64,9 +64,11 @@ Product:       PK = PRODUCT#<canonical_id>           SK = METADATA
 User:          PK = USER#<userId>                    SK = PROFILE
 UserStore:     PK = USER#<userId>                    SK = STOREINSTANCE#<instanceId>
 
-GSI1 (Price History): GSI1PK = PRODUCT#<id>         GSI1SK = <date>#<instanceId>
-GSI2 (Browse):        GSI2PK = WEEK#<week>          GSI2SK = STORE#<instanceId>#DEPT#<dept>
+GSI1 (Price History): GSI1PK = PRODUCT#<id>         GSI1SK = <weekId>#<instanceId>
+GSI2 (Entity Type):   PK = entityType               SK = weekId   (plain attributes, no GSI2PK/GSI2SK)
 ```
+
+GSI1 is sparse: an item is indexed only when it has **both** `GSI1PK` and `GSI1SK`. Any write that sets a deal's `canonicalProductId` must set both, or the deal silently drops out of price history.
 
 Store instance IDs are `{type}:{sha256_hash(identifiers)}`. Supported chains: `kingsoopers`, `safeway`, `sprouts`. Each `StoreInstanceItem` carries a required `timezone` field (IANA name, e.g. `America/Denver`) — used to resolve store-local calendar dates.
 

@@ -25,6 +25,7 @@ vi.mock('../../src/db/client', () => ({
   getPriceHistory: vi.fn(),
   getDeal: vi.fn(),
   updateDeal: vi.fn(),
+  backfillDealGsi1Sk: vi.fn(),
 }));
 
 vi.mock('../../src/scraper/kingsoopers', () => ({
@@ -155,5 +156,41 @@ describe('PATCH /admin/deals/:instanceId/:weekId/:dealId', () => {
       expect.objectContaining({ canonicalProductId: 'juice' }),
       expect.any(String)
     );
+  });
+});
+
+// ── POST /admin/deals/backfill-gsi1sk ─────────────────────────────────────────
+
+describe('POST /admin/deals/backfill-gsi1sk', () => {
+  const report = { dryRun: true, updated: 0, skipped: 0, deals: [] };
+
+  function post(query = '') {
+    return createApp().request(`/api/admin/deals/backfill-gsi1sk${query}`, { method: 'POST' });
+  }
+
+  beforeEach(() => {
+    vi.mocked(dbClient.backfillDealGsi1Sk).mockReset();
+    vi.mocked(dbClient.backfillDealGsi1Sk).mockResolvedValue(report);
+  });
+
+  it('defaults to a dry run', async () => {
+    await post();
+    expect(dbClient.backfillDealGsi1Sk).toHaveBeenCalledWith(true);
+  });
+
+  it('stays a dry run for any dryRun value other than "false"', async () => {
+    await post('?dryRun=nope');
+    expect(dbClient.backfillDealGsi1Sk).toHaveBeenCalledWith(true);
+  });
+
+  it('writes only when dryRun=false is passed explicitly', async () => {
+    await post('?dryRun=false');
+    expect(dbClient.backfillDealGsi1Sk).toHaveBeenCalledWith(false);
+  });
+
+  it('returns the backfill report', async () => {
+    const res = await post();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(report);
   });
 });

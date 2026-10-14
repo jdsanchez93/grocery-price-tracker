@@ -184,9 +184,12 @@ export async function updateDeal(
   };
 
   if (updates.canonicalProductId != null) {
-    sets.push('canonicalProductId = :cpi', 'GSI1PK = :gsi1pk');
+    // GSI1 only indexes items that have both key attributes, and a deal that was
+    // unmatched at scrape time has neither — so GSI1SK must be written here too.
+    sets.push('canonicalProductId = :cpi', 'GSI1PK = :gsi1pk', 'GSI1SK = :gsi1sk');
     expressionAttributeValues[':cpi'] = updates.canonicalProductId;
     expressionAttributeValues[':gsi1pk'] = Keys.gsi1.pk(updates.canonicalProductId);
+    expressionAttributeValues[':gsi1sk'] = Keys.gsi1.sk(deal.weekId, deal.storeInstanceId);
   } else if (updates.canonicalProductId === null) {
     removes.push('canonicalProductId', 'GSI1PK', 'GSI1SK');
   }
@@ -224,6 +227,60 @@ export async function getDeal(dealId: string, instanceId: string, weekId: string
     }
   }));
   return (result.Item as DealItem) || null;
+}
+
+// One-shot: add the missing GSI1SK to deals whose canonicalProductId was set by
+// updateDeal before it wrote GSI1SK. Those deals have GSI1PK alone, so GSI1 never
+// indexed them and they were missing from price history. Delete once run in prod.
+export async function backfillDealGsi1Sk(dryRun: boolean): Promise<{
+  dryRun: boolean;
+  updated: number;
+  skipped: number;
+  deals: Pick<DealItem, 'storeInstanceId' | 'weekId' | 'dealId' | 'name' | 'canonicalProductId'>[];
+}> {
+  const deals: DealItem[] = [];
+  let lastKey: Record<string, unknown> | undefined;
+
+  do {
+    const result = await docClient.send(new ScanCommand({
+      TableName: TABLE_NAME,
+      FilterExpression: 'entityType = :et AND attribute_exists(GSI1PK) AND attribute_not_exists(GSI1SK)',
+      ExpressionAttributeValues: { ':et': 'DEAL' },
+      ExclusiveStartKey: lastKey,
+    }));
+    deals.push(...((result.Items || []) as DealItem[]));
+    lastKey = result.LastEvaluatedKey as Record<string, unknown> | undefined;
+  } while (lastKey);
+
+  let updated = 0;
+  let skipped = 0;
+  if (!dryRun) {
+    for (const deal of deals) {
+      try {
+        await docClient.send(new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: { PK: deal.PK, SK: deal.SK },
+          UpdateExpression: 'SET GSI1SK = :gsi1sk',
+          ExpressionAttributeValues: { ':gsi1sk': Keys.gsi1.sk(deal.weekId, deal.storeInstanceId) },
+          // Skip deals deleted or re-edited since the scan instead of upserting a stub item
+          ConditionExpression: 'attribute_exists(GSI1PK) AND attribute_not_exists(GSI1SK)',
+        }));
+        updated++;
+      } catch (err) {
+        if (!(err instanceof ConditionalCheckFailedException)) throw err;
+        skipped++;
+      }
+    }
+  }
+
+  return {
+    dryRun,
+    updated,
+    skipped,
+    deals: deals.map(({ storeInstanceId, weekId, dealId, name, canonicalProductId }) => ({
+      storeInstanceId, weekId, dealId, name, canonicalProductId,
+    })),
+  };
 }
 
 // ===================

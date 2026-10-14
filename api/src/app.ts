@@ -35,6 +35,7 @@ import {
   getDealsForStoreWeek,
   updateDeal,
   getDeal,
+  backfillDealGsi1Sk,
 } from './db/client';
 import {
   StoreType,
@@ -472,6 +473,15 @@ export function createApp() {
     return c.json({
       deal: updatedDeal
     });
+  });
+
+  // One-shot: backfill GSI1SK on deals whose product ID was set in the Deals Editor
+  // before updateDeal wrote it — they were missing from price history. Defaults to
+  // dryRun=true (lists affected deals); pass `?dryRun=false` to write. Delete once run in prod.
+  app.post('/admin/deals/backfill-gsi1sk', requirePermission('deals:write'), async (c) => {
+    const dryRun = c.req.query('dryRun') !== 'false';
+    const result = await backfillDealGsi1Sk(dryRun);
+    return c.json(result);
   });
 
   // ===================
