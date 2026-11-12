@@ -80,11 +80,22 @@ describe('updateDeal', () => {
       mockSend.mockResolvedValue({ Attributes: { ...mockDeal, canonicalProductId: 'soda' } });
     });
 
-    it('includes canonicalProductId and GSI1PK in the SET expression', async () => {
+    it('includes canonicalProductId and both GSI1 keys in the SET expression', async () => {
       await updateDeal(mockDeal, { canonicalProductId: 'soda' }, 'admin:123');
       const { UpdateExpression } = sentUpdateInput();
       expect(UpdateExpression).toContain('canonicalProductId = :cpi');
       expect(UpdateExpression).toContain('GSI1PK = :gsi1pk');
+      expect(UpdateExpression).toContain('GSI1SK = :gsi1sk');
+    });
+
+    it('writes GSI1SK so a deal unmatched at scrape time becomes visible in price history', async () => {
+      // mockDeal has no GSI1 keys (the scraper found no canonical product). GSI1 skips
+      // items missing either key attribute, so writing GSI1PK alone leaves it unindexed.
+      expect(mockDeal.GSI1SK).toBeUndefined();
+      await updateDeal(mockDeal, { canonicalProductId: 'yogurt' }, 'admin:123');
+      const { ExpressionAttributeValues } = sentUpdateInput() as { ExpressionAttributeValues: Record<string, unknown> };
+      expect(ExpressionAttributeValues[':gsi1pk']).toBe('PRODUCT#yogurt');
+      expect(ExpressionAttributeValues[':gsi1sk']).toBe('2026-W17#kingsoopers:abc123');
     });
 
     it('does not include a REMOVE clause', async () => {
@@ -97,6 +108,7 @@ describe('updateDeal', () => {
       const { ExpressionAttributeValues } = sentUpdateInput() as { ExpressionAttributeValues: Record<string, unknown> };
       expect(ExpressionAttributeValues[':cpi']).toBe('soda');
       expect(ExpressionAttributeValues[':gsi1pk']).toBe('PRODUCT#soda');
+      expect(ExpressionAttributeValues[':gsi1sk']).toBe('2026-W17#kingsoopers:abc123');
     });
 
     it('returns the updated deal from DynamoDB', async () => {
@@ -123,6 +135,7 @@ describe('updateDeal', () => {
       const { ExpressionAttributeValues } = sentUpdateInput() as { ExpressionAttributeValues: Record<string, unknown> };
       expect(ExpressionAttributeValues[':cpi']).toBeUndefined();
       expect(ExpressionAttributeValues[':gsi1pk']).toBeUndefined();
+      expect(ExpressionAttributeValues[':gsi1sk']).toBeUndefined();
     });
   });
 
@@ -141,6 +154,11 @@ describe('updateDeal', () => {
       await updateDeal(mockDeal, { dept: 'produce' }, 'admin:123');
       const { ExpressionAttributeValues } = sentUpdateInput() as { ExpressionAttributeValues: Record<string, unknown> };
       expect(ExpressionAttributeValues[':dept']).toBe('produce');
+    });
+
+    it('leaves the GSI1 keys untouched', async () => {
+      await updateDeal(mockDeal, { dept: 'produce' }, 'admin:123');
+      expect(sentUpdateInput().UpdateExpression).not.toContain('GSI1');
     });
   });
 
