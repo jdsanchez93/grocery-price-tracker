@@ -71,6 +71,10 @@ describe('normalizeDept', () => {
       expect(normalizeDept('GROCERY', 'Pepsi or 7UP')).toBe('beverages');
     });
 
+    it('GROCERY + British-spelling "yoghurt" name → dairy', () => {
+      expect(normalizeDept('GROCERY', 'Noosa Yoghurt')).toBe('dairy');
+    });
+
     it('GROCERY + pasta name → pantry (fallback finds no match, stays pantry)', () => {
       expect(normalizeDept('GROCERY', 'Kroger Pasta')).toBe('pantry');
     });
@@ -105,6 +109,16 @@ describe('findCanonicalProductId', () => {
 
     it('does not match Easter egg candy in DRUG/GM dept', () => {
       expect(findCanonicalProductId('Cadbury Mini Eggs', undefined, 'DRUG/GM')).toBeUndefined();
+    });
+  });
+
+  describe('yogurt', () => {
+    it('matches KS "Noosa Yoghurt" (British spelling) via GROCERY name fallback', () => {
+      expect(findCanonicalProductId('Noosa Yoghurt', undefined, 'GROCERY')).toBe('yogurt');
+    });
+
+    it('matches American spelling via GROCERY name fallback', () => {
+      expect(findCanonicalProductId('Chobani Greek Yogurt', undefined, 'GROCERY')).toBe('yogurt');
     });
   });
 
