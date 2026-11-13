@@ -43,7 +43,7 @@ function normalizeDeptPart(d: string): NormalizedDept {
 function refineDeptFromName(name: string): NormalizedDept | undefined {
   const n = name.toLowerCase();
   if (/ice cream|gelato|sorbet|frozen|popsicle|pizza|pot pie|steamer/.test(n)) return 'frozen';
-  if (/\bmilk\b|cheese|yogurt|butter|cream cheese|creamer|\begg/.test(n)) return 'dairy';
+  if (/\bmilk\b|cheese|yog(?:h)?urt|butter|cream cheese|creamer|\begg/.test(n)) return 'dairy';
   if (/\bchicken\b|beef|pork|salmon|steak|bacon|tuna/.test(n)) return 'meat';
   if (/\bsoda\b|juice|\bwater\b|coffee|tea|energy drink|sparkling|seltzer|powerade|gatorade|celsius|alani|coca.?cola|\bpepsi\b|\b7.?up\b|\bsprite\b|dr\.?\s*pepper|mountain\s*dew/.test(n)) return 'beverages';
   if (/cereal|granola/.test(n)) return 'cereal';
@@ -206,8 +206,8 @@ const CANONICAL_PRODUCTS: CanonicalProduct[] = [
     displayName: 'Yogurt',
     category: 'dairy',
     patterns: [
-      /yogurt/i,
-      /greek\s+yogurt/i,
+      /yog(?:h)?urt/i,
+      /greek\s+yog(?:h)?urt/i,
     ],
     deptIn: ['dairy'],
   },
