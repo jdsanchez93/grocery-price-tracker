@@ -50,7 +50,7 @@ npm test           # Jest
 - `db/client.ts` — DynamoDB client (AWS SDK v3 `@aws-sdk/lib-dynamodb`)
 - `scraper/` — `kingsoopers.ts` (Kroger API via scraper-worker), `safeway.ts` (Flipp API), `products.ts` (canonical product matching), `errors.ts` (shared `NoCircularError`). Each chain's top-level `fetchAndPersistWeeklyDeals(identifiers, instanceId, ..., { force?, preview? })` is the canonical end-to-end entry: fetch → pick target → alreadyScraped check → optional force-delete → persist. Throws `NoCircularError` when no matching ad exists upstream.
 - `jobs/` — Event-driven Lambda handlers (separate from the api Lambda): `previewScrapePlanner.ts` (weekly trigger) + `previewScrapeWorker.ts` (per-store scrape). Each exports a `run*` function so the same logic powers both the Lambda handler and the admin debug routes in `app.ts`.
-- `types/database.ts` — All DynamoDB item type definitions + week/timezone helpers (`activeWeekId`, `todayInStoreTz`, `getWeekIdForDate`)
+- `types/database.ts` — All DynamoDB item type definitions + week/timezone helpers (`candidateWeekIds`, `todayInStoreTz`, `getWeekIdForDate`)
 
 #### Key permissions used by routes
 `stores:read`, `stores:write`, `deals:read`, `deals:write`, `user-stores:read`, `user-stores:write`, `history:read`, `scraper:run`
@@ -74,9 +74,10 @@ Store instance IDs are `{type}:{sha256_hash(identifiers)}`. Supported chains: `k
 
 ### Week IDs & "current week" resolution
 - `weekId` format is `YYYY-Www` (zero-padded). Each circular is stored under the weekId derived from its own `startDate` (`getWeekIdForDate(new Date(startDate + 'T12:00:00'))`).
-- Circulars run **Wed→Tue, 7 days, store-local calendar dates inclusive**. `CircularItem.startDate` and `endDate` are plain `YYYY-MM-DD` strings in the store's local TZ.
-- "What week is it right now?" is **never** computed from a wall clock. Use `activeWeekId(timezone)` in `api/src/types/database.ts` — resolves today's date in the store's TZ → weekId of its current circular. The function relies on the invariant that any day inside a Wed→Tue range produces the same weekId as its startDate.
-- Read-side endpoints (`/me/deals`, `/admin/scrape/status`) resolve "current" per-store via `activeWeekId`, so they tick over exactly when each store's local clock crosses Wed midnight — not when UTC does.
+- Circulars **usually** run Wed→Tue, 7 days, store-local calendar dates inclusive — but **not always**. Holiday ads break the pattern (Thanksgiving 2026: Wed Nov 18 → Thu Nov 26, then Fri Nov 27 → Tue Dec 1). Never assume a circular's length or start weekday. `CircularItem.startDate` and `endDate` are plain `YYYY-MM-DD` strings in the store's local TZ.
+- "Which circular is live right now?" is resolved **by date range**, never by computing a weekId from today's date. Use `findActiveCircular(storeInstanceId, timezone)` in `api/src/db/client.ts`: it takes today in the store's TZ, fetches every partition a covering circular could live in (`candidateWeekIds(today)` in `types/database.ts` — the weekIds of all possible start dates in the last `MAX_CIRCULAR_LENGTH_DAYS`), and returns the one with `startDate <= today <= endDate` (latest start wins on overlap). "Today's weekId" is wrong in two known cases: an extended holiday ad still running in last week's partition while this week's partition holds a pre-scraped ad that hasn't started, and year boundaries (`getWeekIdForDate` gives Wed 2026-12-30 → `2026-W53` but Mon 2027-01-04 → `2027-W01`).
+- Read-side endpoints (`/me/deals`, `/admin/scrape/status`, the `?week=` gate) all go through `findActiveCircular`, so each store flips exactly when its local date leaves the old circular's range.
+- Known limitation (write side): two circulars that *start* in the same Wed→Tue window get the same weekId and would share a partition (deals mixed, metadata overwritten). Hasn't happened yet; would take something like a 2-day Thanksgiving-only ad followed by a Black Friday ad.
 - `weekId < currentWeekId` (lexical compare) is the correct way to filter "strictly past" weeks; works across year boundaries since the format is zero-padded.
 
 ### Scheduled preview-scrape (prod-only)
