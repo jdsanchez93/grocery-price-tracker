@@ -205,6 +205,13 @@ export function getWeekIdForDate(date: Date): string {
   return `${adjusted.getFullYear()}-W${weekNumber.toString().padStart(2, '0')}`;
 }
 
+// The weekId a circular is stored under, from its store-local start date ("YYYY-MM-DD").
+// Both scrapers' persist paths and the live-circular check use this, so a "is this ad
+// already stored?" pre-check always looks in the same partition the scrape writes to.
+export function circularWeekId(startDate: string): string {
+  return getWeekIdForDate(new Date(startDate + 'T12:00:00'));
+}
+
 // Today's calendar date in a specific IANA timezone, as "YYYY-MM-DD"
 export function todayInStoreTz(timezone: string, now: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(now);

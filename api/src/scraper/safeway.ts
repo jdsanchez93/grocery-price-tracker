@@ -1,5 +1,5 @@
 import { writeDeals, writeCircular, getCircular, deleteCircularAndDeals } from '../db/client';
-import { SafewayIdentifiers, getWeekIdForDate, todayInStoreTz } from '../types/database';
+import { SafewayIdentifiers, circularWeekId, todayInStoreTz } from '../types/database';
 import { findCanonicalProductId } from './products';
 import type { StandardDeal } from './types';
 import { NoCircularError } from './errors';
@@ -138,6 +138,24 @@ export function extractWeeklyAds(
       endDate: pub.valid_to.split('T')[0],
     }))
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
+}
+
+/**
+ * Pick the weekly ad a scrape targets from `extractWeeklyAds` output (sorted by
+ * startDate). `today` is the store-local "YYYY-MM-DD".
+ *   - preview: the first ad that starts after today.
+ *   - otherwise: the first ad whose date range covers today.
+ * Shared by `fetchAndPersistWeeklyDeals` and the live-circular check so the
+ * check's "already stored?" answer is about the same ad a scrape would fetch.
+ */
+export function selectWeeklyAd(
+  ads: WeeklyAdMetadata[],
+  today: string,
+  preview: boolean
+): WeeklyAdMetadata | undefined {
+  return preview
+    ? ads.find((a) => a.startDate > today)
+    : ads.find((a) => a.startDate <= today && today <= a.endDate);
 }
 
 /**
@@ -398,9 +416,7 @@ export async function fetchAndPersistWeeklyDeals(
   const ads = extractWeeklyAds(publications);
 
   const today = todayInStoreTz(timezone);
-  const target = preview
-    ? ads.find((a) => a.startDate > today)
-    : ads.find((a) => a.startDate <= today && today <= a.endDate);
+  const target = selectWeeklyAd(ads, today, preview);
 
   if (!target) {
     throw new NoCircularError(
@@ -410,7 +426,7 @@ export async function fetchAndPersistWeeklyDeals(
 
   const circularId = target.circularId;
   const circularDates = { startDate: target.startDate, endDate: target.endDate };
-  const weekId = getWeekIdForDate(new Date(target.startDate + 'T12:00:00'));
+  const weekId = circularWeekId(target.startDate);
 
   const existingCircular = await getCircular(storeInstanceId, weekId);
   if (!force && existingCircular && existingCircular.circularId === circularId) {

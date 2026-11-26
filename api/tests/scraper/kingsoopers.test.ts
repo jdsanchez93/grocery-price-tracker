@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, type MockInstance, beforeEach, afterEach } from 'vitest';
-import { standardizeKingSoopersAd, StandardDeal, fetchWeeklyDeals, _resetTokenCache, _getKrogerPriceVariants, _fetchProductPrices, _fetchProductPricesByTerm, _resolveBogoFromWorkerData, toStoreLocalDate, NoCircularError, fetchCircularsList } from '../../src/scraper/kingsoopers';
+import { standardizeKingSoopersAd, StandardDeal, fetchWeeklyDeals, _resetTokenCache, _getKrogerPriceVariants, _fetchProductPrices, _fetchProductPricesByTerm, _resolveBogoFromWorkerData, toStoreLocalDate, NoCircularError, fetchCircularsList, pickLiveCircular } from '../../src/scraper/kingsoopers';
 
 vi.mock('../../src/config', () => ({
   getKrogerCreds: vi.fn().mockResolvedValue({
@@ -1222,5 +1222,34 @@ describe('fetchCircularsList', () => {
     await expect(
       fetchCircularsList({ type: 'kingsoopers', storeId: 'store-1', facilityId: 'fac-1' })
     ).rejects.toThrow(/Scraper worker error: 500/);
+  });
+});
+
+describe('pickLiveCircular', () => {
+  // Thanksgiving 2026 in Mountain time: holiday ad Wed Nov 18 → Thu Nov 26,
+  // next ad Fri Nov 27 → Tue Dec 1, listed by Kroger as the preview.
+  const holiday = { circularId: 'holiday', previewCircular: false, startDate: '2026-11-18T07:00:00Z', endDate: '2026-11-27T06:59:59Z', timezone: 'America/Denver' };
+  const next = { circularId: 'next', previewCircular: true, startDate: '2026-11-27T07:00:00Z', endDate: '2026-12-02T06:59:59Z', timezone: 'America/Denver' };
+
+  it('picks the ad whose store-local dates cover today, with its weekId', () => {
+    expect(pickLiveCircular([holiday, next], '2026-11-25')).toEqual({
+      circularId: 'holiday', previewCircular: false, startDate: '2026-11-18', endDate: '2026-11-26', weekId: '2026-W47',
+    });
+  });
+
+  it('picks by dates, not by the preview flag', () => {
+    expect(pickLiveCircular([holiday, next], '2026-11-27')).toMatchObject({
+      circularId: 'next', previewCircular: true, startDate: '2026-11-27', endDate: '2026-12-01', weekId: '2026-W48',
+    });
+  });
+
+  it('prefers the most recently started ad when two cover today', () => {
+    const overlap = { ...next, circularId: 'overlap', startDate: '2026-11-25T07:00:00Z' };
+    expect(pickLiveCircular([holiday, overlap], '2026-11-25')?.circularId).toBe('overlap');
+  });
+
+  it('returns null when no ad covers today', () => {
+    expect(pickLiveCircular([holiday], '2026-11-27')).toBeNull();
+    expect(pickLiveCircular([], '2026-11-27')).toBeNull();
   });
 });

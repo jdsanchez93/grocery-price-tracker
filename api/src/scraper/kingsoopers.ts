@@ -1,5 +1,5 @@
 import { writeDeals, writeCircular, getCircular, deleteCircularAndDeals } from '../db/client';
-import { KingSoopersIdentifiers, PriceVariant, getWeekIdForDate } from '../types/database';
+import { KingSoopersIdentifiers, PriceVariant, circularWeekId } from '../types/database';
 import { findCanonicalProductId } from './products';
 import { getKrogerCreds, getScraperWorkerConfig } from '../config';
 import { logger } from '../logger';
@@ -386,6 +386,38 @@ export async function fetchCircularsList(
   return circulars;
 }
 
+export interface LiveCircular {
+  circularId: string;
+  previewCircular: boolean;
+  startDate: string; // store-local YYYY-MM-DD
+  endDate: string;   // store-local YYYY-MM-DD
+  weekId: string;    // partition a scrape of this circular is stored under
+}
+
+/**
+ * From a `fetchCircularsList` result, the weekly ad whose store-local date range
+ * covers `today` (store-local "YYYY-MM-DD"), or null if none does. Picked by
+ * dates rather than by Kroger's `previewCircular` flag, so the answer doesn't
+ * depend on when Kroger flips that flag. If two ads cover today, the one that
+ * started most recently wins.
+ */
+export function pickLiveCircular(
+  circulars: CircularSummary[],
+  today: string
+): LiveCircular | null {
+  const covering = circulars
+    .map((c) => ({
+      circularId: c.circularId,
+      previewCircular: c.previewCircular,
+      startDate: toStoreLocalDate(c.startDate, c.timezone),
+      endDate: toStoreLocalDate(c.endDate, c.timezone),
+    }))
+    .filter((c) => c.startDate <= today && today <= c.endDate)
+    .sort((a, b) => b.startDate.localeCompare(a.startDate));
+  const live = covering[0];
+  return live ? { ...live, weekId: circularWeekId(live.startDate) } : null;
+}
+
 async function callScraperWorker(
   identifiers: KingSoopersIdentifiers,
   preview: boolean
@@ -511,7 +543,7 @@ export async function fetchAndPersistWeeklyDeals(
 
   const startDate = toStoreLocalDate(circularDates.startDate, timezone);
   const endDate = toStoreLocalDate(circularDates.endDate, timezone);
-  const weekId = getWeekIdForDate(new Date(startDate + 'T12:00:00'));
+  const weekId = circularWeekId(startDate);
 
   // Deduplication check
   const existingCircular = await getCircular(storeInstanceId, weekId);
