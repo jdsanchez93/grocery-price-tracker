@@ -47,6 +47,7 @@ import {
 } from './types/database';
 import { computeDealRating } from './analysis/dealRating';
 import { runPlanner } from './jobs/previewScrapePlanner';
+import { runLiveCircularCheck } from './jobs/liveCircularCheck';
 
 
 type LambdaBindings = {
@@ -415,6 +416,24 @@ export function createApp() {
     const dryRun = c.req.query('dryRun') !== 'false';
     try {
       const report = await runPlanner({ dryRun });
+      return c.json(report);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return c.json({ error: message }, 500);
+    }
+  });
+
+  // Run the live-circular check on demand: for each store, is the ad covering
+  // today stored? Scrape it if not. Defaults to dryRun=true like plan-now: a dry
+  // run reads upstream ad metadata and DDB but writes nothing. `?dryRun=false`
+  // scrapes missing ads inline, one store at a time; in prod that can outlast
+  // API Gateway's 30s limit when several stores need a full scrape, so pair it
+  // with `?instanceId=X` there (the scheduled Lambda has a longer timeout).
+  app.post('/admin/scheduler/live-check-now', requirePermission('scraper:run'), async (c) => {
+    const dryRun = c.req.query('dryRun') !== 'false';
+    const instanceId = c.req.query('instanceId') || undefined;
+    try {
+      const report = await runLiveCircularCheck({ dryRun, instanceId });
       return c.json(report);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';

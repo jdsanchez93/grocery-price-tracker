@@ -12,7 +12,7 @@ vi.mock('../../src/scraper/products', () => ({
   findCanonicalProductId: vi.fn().mockReturnValue(undefined),
 }));
 
-import { extractWeeklyAds, fetchAndPersistWeeklyDeals, NoCircularError } from '../../src/scraper/safeway';
+import { extractWeeklyAds, selectWeeklyAd, fetchAndPersistWeeklyDeals, NoCircularError } from '../../src/scraper/safeway';
 import { getCircular, deleteCircularAndDeals } from '../../src/db/client';
 
 type Pub = Parameters<typeof extractWeeklyAds>[0][number];
@@ -236,5 +236,27 @@ describe('fetchAndPersistWeeklyDeals (high-level)', () => {
     await expect(
       fetchAndPersistWeeklyDeals(identifiers, 'safeway:abc', TZ, { preview: false })
     ).rejects.toMatchObject({ name: 'NoCircularError', message: 'No active weekly ad circular found' });
+  });
+});
+
+describe('selectWeeklyAd', () => {
+  const ads = [
+    { circularId: '100', startDate: '2026-11-18', endDate: '2026-11-26' },
+    { circularId: '200', startDate: '2026-11-27', endDate: '2026-12-01' },
+  ];
+
+  it('without preview, picks the ad covering today (inclusive of both ends)', () => {
+    expect(selectWeeklyAd(ads, '2026-11-18', false)?.circularId).toBe('100');
+    expect(selectWeeklyAd(ads, '2026-11-26', false)?.circularId).toBe('100');
+    expect(selectWeeklyAd(ads, '2026-11-27', false)?.circularId).toBe('200');
+  });
+
+  it('with preview, picks the first ad starting after today', () => {
+    expect(selectWeeklyAd(ads, '2026-11-25', true)?.circularId).toBe('200');
+    expect(selectWeeklyAd(ads, '2026-11-27', true)).toBeUndefined();
+  });
+
+  it('returns undefined when nothing covers today', () => {
+    expect(selectWeeklyAd(ads, '2026-12-02', false)).toBeUndefined();
   });
 });

@@ -200,6 +200,60 @@ export class AppStack extends cdk.Stack {
       },
     });
 
+    // --- Live-circular check: "is the ad covering today stored?" ---
+    // Backstop for the Tuesday preview scrape, which misses any ad the chain
+    // hasn't published yet (Safeway's post-Thanksgiving 2026 ad). For each store
+    // it reads upstream ad metadata, and runs a full scrape only when the ad
+    // covering today isn't stored. Stores run sequentially in one invocation,
+    // so the timeout leaves room for several ~60s Kroger scrapes in a bad week.
+    const liveCircularCheckFunction = new NodejsFunction(this, 'LiveCircularCheckFunction', {
+      entry: path.join(__dirname, '../../api/src/jobs/liveCircularCheck.ts'),
+      handler: 'handler',
+      runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
+      memorySize: 512,
+      timeout: cdk.Duration.minutes(10),
+      bundling: {
+        format: cdk.aws_lambda_nodejs.OutputFormat.ESM,
+        minify: true,
+        sourceMap: true,
+        target: 'node22',
+        forceDockerBundling: false,
+        externalModules: ['@aws-sdk/*'],
+        banner: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
+      },
+      environment: {
+        STAGE: 'prod',
+        TABLE_NAME: props.dealsTable.tableName,
+        KROGER_SCOPE: props.krogerScope || '',
+        LOG_LEVEL: 'info',
+      },
+    });
+    props.dealsTable.grantReadWriteData(liveCircularCheckFunction);
+    liveCircularCheckFunction.addToRolePolicy(new cdk.aws_iam.PolicyStatement({
+      actions: ['ssm:GetParameter'],
+      resources: ssmKrogerScraperParamArns,
+    }));
+
+    const liveCheckInvokeRole = new cdk.aws_iam.Role(this, 'LiveCheckInvokeRole', {
+      assumedBy: new cdk.aws_iam.ServicePrincipal('scheduler.amazonaws.com'),
+    });
+    liveCircularCheckFunction.grantInvoke(liveCheckInvokeRole);
+
+    // Twice a day, Mountain time (all current stores are in Denver). 00:30 runs
+    // just after the date rolls over, so an ad published any time before its
+    // start day is stored before morning. 12:30 catches an ad published on its
+    // start day.
+    new cdk.aws_scheduler.CfnSchedule(this, 'LiveCircularCheckSchedule', {
+      name: 'live-circular-check',
+      scheduleExpression: 'cron(30 0,12 * * ? *)',
+      scheduleExpressionTimezone: 'America/Denver',
+      flexibleTimeWindow: { mode: 'OFF' },
+      target: {
+        arn: liveCircularCheckFunction.functionArn,
+        roleArn: liveCheckInvokeRole.roleArn,
+      },
+    });
+
     // --- HTTP API Gateway ---
     const httpApi = new apigwv2.HttpApi(this, 'HttpApi', {
       corsPreflight: {
