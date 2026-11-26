@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { getWeekIdForDate, Keys, todayInStoreTz, activeWeekId } from '../../src/types/database'
+import { getWeekIdForDate, Keys, todayInStoreTz, candidateWeekIds, MAX_CIRCULAR_LENGTH_DAYS } from '../../src/types/database'
 
 describe('getWeekIdForDate', () => {
   it('should start a new week on Wednesday', () => {
@@ -119,44 +119,39 @@ describe('todayInStoreTz', () => {
   });
 });
 
-describe('activeWeekId', () => {
-  afterEach(() => {
-    vi.useRealTimers();
+describe('candidateWeekIds', () => {
+  // Circulars are stored under getWeekIdForDate(startDate). The candidates must
+  // include the stored weekId of every circular that could be covering `today`.
+  const weekOf = (startDate: string) => getWeekIdForDate(new Date(startDate + 'T12:00:00'));
+
+  it('puts today\'s own week first, then earlier weeks, with no duplicates', () => {
+    const ids = candidateWeekIds('2026-05-19'); // Tue
+    expect(ids[0]).toBe(weekOf('2026-05-19'));
+    expect(ids).toContain(weekOf('2026-05-13')); // the Wed→Tue circular covering today
+    expect(new Set(ids).size).toBe(ids.length);
+    expect([...ids].sort().reverse()).toEqual(ids);
   });
 
-  // The original bug: at 7pm MT Tuesday, UTC is already Wednesday, so a UTC-based
-  // "current week" flips early. activeWeekId must still report the current week.
-  it('reports the current week at 7pm MT Tuesday (UTC has already rolled to Wed)', () => {
-    // 2026-05-20T01:00:00Z = 2026-05-19T19:00 MDT (Tuesday in Denver)
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-05-20T01:00:00Z'));
-
-    // Circular running 2026-05-13 (Wed) → 2026-05-19 (Tue) is stored under this weekId.
-    // (A naive UTC-clock "current week" would already have rolled to 2026-W21 here —
-    // that early flip in the Lambda's UTC runtime is the original bug.)
-    const currentWeek = getWeekIdForDate(new Date('2026-05-13T12:00:00'));
-    expect(activeWeekId('America/Denver')).toBe(currentWeek);
+  it('includes last week\'s partition for a holiday ad that runs past Tuesday', () => {
+    // Thanksgiving 2026: ad ran Wed Nov 18 → Thu Nov 26 (stored W47). On Wed Nov 25
+    // today's own week is W48, which may hold a pre-scraped ad starting Fri Nov 27.
+    const ids = candidateWeekIds('2026-11-25');
+    expect(ids).toEqual(expect.arrayContaining([weekOf('2026-11-18'), weekOf('2026-11-27')]));
+    expect(weekOf('2026-11-18')).not.toBe(weekOf('2026-11-25'));
   });
 
-  it('rolls to the next week exactly at Wed 00:00 MT', () => {
-    // 2026-05-20T06:01:00Z = 2026-05-20T00:01 MDT (Wednesday begins in Denver)
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-05-20T06:01:00Z'));
-
-    const nextWeek = getWeekIdForDate(new Date('2026-05-20T12:00:00'));
-    expect(activeWeekId('America/Denver')).toBe(nextWeek);
+  it('finds a circular that started before a year boundary', () => {
+    // Wed 2026-12-30 is stored as 2026-W53, but getWeekIdForDate rolls to 2027-W01 on
+    // Mon 2027-01-04 — inside that same Wed→Tue window.
+    expect(weekOf('2027-01-04')).not.toBe(weekOf('2026-12-30'));
+    expect(candidateWeekIds('2027-01-04')).toContain(weekOf('2026-12-30'));
   });
 
-  it('matches the weekId the scraper stored for any day inside the circular range', () => {
-    // Stored weekId is derived from the circular startDate (Wed 2026-05-13).
-    const stored = getWeekIdForDate(new Date('2026-05-13T12:00:00'));
-
-    for (const iso of ['2026-05-13T15:00:00Z', '2026-05-16T15:00:00Z', '2026-05-20T05:00:00Z']) {
-      // All instants resolve to a Denver date within 2026-05-13..2026-05-19.
-      vi.useFakeTimers();
-      vi.setSystemTime(new Date(iso));
-      expect(activeWeekId('America/Denver')).toBe(stored);
-      vi.useRealTimers();
+  it('covers every start date within the lookback window', () => {
+    const ids = new Set(candidateWeekIds('2026-03-10'));
+    for (let k = 0; k < MAX_CIRCULAR_LENGTH_DAYS; k++) {
+      const start = new Date(Date.UTC(2026, 2, 10 - k)).toISOString().slice(0, 10);
+      expect(ids.has(weekOf(start))).toBe(true);
     }
   });
 });

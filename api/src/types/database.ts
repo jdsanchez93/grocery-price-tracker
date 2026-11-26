@@ -210,12 +210,31 @@ export function todayInStoreTz(timezone: string, now: Date = new Date()): string
   return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(now);
 }
 
-// The grocery weekId currently active for a store, resolved in that store's timezone.
-// Relies on the scraper storing weekId = getWeekIdForDate(startDate) and circulars
-// running Wed→Tue (true for all current chains): every day in a circular's range maps
-// to the same weekId as its startDate, so this matches the stored partition key.
-export function activeWeekId(timezone: string): string {
-  return getWeekIdForDate(new Date(todayInStoreTz(timezone) + 'T12:00:00'));
+// Longest circular we expect, in days. Normal ads run 7 (Wed→Tue); holiday ads run
+// longer (Thanksgiving 2026 ran 9: Wed Nov 18 → Thu Nov 26). Two weeks is headroom.
+export const MAX_CIRCULAR_LENGTH_DAYS = 14;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// The weekIds under which a circular covering `today` (store-local "YYYY-MM-DD") could
+// be stored, newest first. Circulars are keyed by getWeekIdForDate(startDate), and one
+// that covers today must have started within the last `lookbackDays` days, so the
+// candidates are the distinct weekIds of those possible start dates.
+//
+// Deliberately does NOT assume "today's weekId == the live circular's weekId". That
+// shortcut breaks for holiday ads that run past Tuesday (today's partition may hold a
+// pre-scraped ad that hasn't started yet) and at year boundaries, where
+// getWeekIdForDate changes year mid-window (Wed 2026-12-30 → 2026-W53, but
+// Mon 2027-01-04 → 2027-W01).
+export function candidateWeekIds(today: string, lookbackDays = MAX_CIRCULAR_LENGTH_DAYS): string[] {
+  const base = new Date(today + 'T12:00:00Z').getTime();
+  const ids = new Set<string>();
+  for (let k = 0; k < lookbackDays; k++) {
+    const day = new Date(base - k * DAY_MS).toISOString().slice(0, 10);
+    // Same local-noon parse the scrapers use when they compute a circular's weekId.
+    ids.add(getWeekIdForDate(new Date(day + 'T12:00:00')));
+  }
+  return [...ids];
 }
 
 // Helper to get ISO date string

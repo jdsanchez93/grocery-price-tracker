@@ -17,7 +17,8 @@ import {
   UserItem,
   UserStoreItem,
   CircularItem,
-  activeWeekId,
+  candidateWeekIds,
+  todayInStoreTz,
   StoreIdentifiers,
   StoreAddress,
   generateStoreInstanceId,
@@ -569,9 +570,31 @@ export type ActiveCircularEntry =
   | { storeInstanceId: string; weekId: string; startDate: string; endDate: string; dealCount: number; circular?: undefined; reason?: undefined }
   | { storeInstanceId: string; circular: null; reason: 'not_yet_scraped' | 'store_not_found' };
 
+// The circular a store is running today (store-local date), found by date range
+// rather than by computing a weekId from the clock. Holiday ads break the Wed→Tue
+// pattern: Thanksgiving 2026's ad ran Wed Nov 18 → Thu Nov 26 (stored as W47), so
+// on Wed Nov 25 the live circular was still in last week's partition while W48
+// already held a pre-scraped ad that didn't start until Fri Nov 27. If two
+// circulars both cover today, the one that started most recently wins.
+export async function findActiveCircular(
+  storeInstanceId: string,
+  timezone: string
+): Promise<CircularItem | null> {
+  const today = todayInStoreTz(timezone);
+  const candidates = await Promise.all(
+    candidateWeekIds(today).map((weekId) => getCircular(storeInstanceId, weekId))
+  );
+  const covering = candidates.filter(
+    (c): c is CircularItem => c !== null && c.startDate <= today && today <= c.endDate
+  );
+  covering.sort((a, b) => b.startDate.localeCompare(a.startDate));
+  return covering[0] ?? null;
+}
+
 // Resolve each of the user's stores to its currently-active circular (in the
-// store's own timezone) and merge the deals. Replaces the clock-based
-// "current week" path: no global weekId, correct at the Wed-midnight-local flip.
+// store's own timezone) and merge the deals. No global weekId: each store's
+// circular is found by its own start/end dates, so it flips exactly when that
+// store's local date leaves the old circular's range.
 export async function getActiveDealsForUserStores(
   userId: string
 ): Promise<{ circulars: ActiveCircularEntry[]; deals: DealItem[] }> {
@@ -590,12 +613,7 @@ export async function getActiveDealsForUserStores(
         };
       }
 
-      const weekId = activeWeekId(store.timezone);
-      const [circular, deals] = await Promise.all([
-        getCircular(us.storeInstanceId, weekId),
-        getDealsForStoreWeek(us.storeInstanceId, weekId),
-      ]);
-
+      const circular = await findActiveCircular(us.storeInstanceId, store.timezone);
       if (!circular) {
         return {
           entry: { storeInstanceId: us.storeInstanceId, circular: null, reason: 'not_yet_scraped' } as ActiveCircularEntry,
@@ -603,10 +621,12 @@ export async function getActiveDealsForUserStores(
         };
       }
 
+      const deals = await getDealsForStoreWeek(us.storeInstanceId, circular.weekId);
+
       return {
         entry: {
           storeInstanceId: us.storeInstanceId,
-          weekId,
+          weekId: circular.weekId,
           startDate: circular.startDate,
           endDate: circular.endDate,
           dealCount: circular.dealCount,
@@ -622,14 +642,16 @@ export async function getActiveDealsForUserStores(
   };
 }
 
-// The set of weekIds currently active across a user's stores (each in its own
-// timezone). Used to gate historical (?week=) access on /me/deals.
+// The weekIds of the circulars currently running across a user's stores (each
+// resolved in its own timezone). Used to gate historical (?week=) access on /me/deals.
 export async function getActiveWeekIds(userId: string): Promise<Set<string>> {
   const userStores = await getUserStores(userId);
   const weekIds = await Promise.all(
     userStores.map(async (us) => {
       const store = await getStoreInstance(us.storeInstanceId);
-      return store ? activeWeekId(store.timezone) : null;
+      if (!store) return null;
+      const circular = await findActiveCircular(us.storeInstanceId, store.timezone);
+      return circular?.weekId ?? null;
     })
   );
   return new Set(weekIds.filter((w): w is string => w !== null));

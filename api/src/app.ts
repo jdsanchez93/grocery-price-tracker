@@ -19,6 +19,7 @@ import {
   getDealsForUserStores,
   getActiveDealsForUserStores,
   getActiveWeekIds,
+  findActiveCircular,
   getUserStores,
   addUserStore,
   removeUserStore,
@@ -28,7 +29,6 @@ import {
   getPriceHistory,
   getStoreInstance,
   writeStoreInstance,
-  getCircular,
   getAllStores,
   updateStoreInstance,
   getAllCirculars,
@@ -43,7 +43,6 @@ import {
   StoreAddress,
   STORE_TYPE_METADATA,
   todayInStoreTz,
-  activeWeekId,
   DealItem,
 } from './types/database';
 import { computeDealRating } from './analysis/dealRating';
@@ -175,11 +174,10 @@ export function createApp() {
         if (!store) {
           return [id, { scraped: false, reason: 'store_not_found' }] as const;
         }
-        const weekId = activeWeekId(store.timezone);
-        const circular = await getCircular(id, weekId);
+        const circular = await findActiveCircular(id, store.timezone);
         return [id, circular
-          ? { scraped: true, weekId, dealCount: circular.dealCount, circularId: circular.circularId }
-          : { scraped: false, weekId }
+          ? { scraped: true, weekId: circular.weekId, dealCount: circular.dealCount, circularId: circular.circularId }
+          : { scraped: false }
         ] as const;
       })
     );
